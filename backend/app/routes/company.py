@@ -1,0 +1,73 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app import models
+
+router = APIRouter(prefix="/companies", tags=["Companies"])
+
+
+# ⭐ 거래처 등록
+@router.post("/")
+def create_company(data: dict, db: Session = Depends(get_db)):
+    # 중복 체크
+    existing = db.query(models.Company).filter(
+        models.Company.name == data["name"]
+    ).first()
+
+    if existing:
+        raise Exception("이미 존재하는 거래처")
+
+    company = models.Company(
+        name=data["name"],
+        phone=data.get("phone", ""),
+        fax=data.get("fax", ""),
+        address=data.get("address", "")
+    )
+
+    db.add(company)
+    db.commit()
+    db.refresh(company)
+
+    return company
+
+
+# ⭐ 거래처 전체 조회
+@router.get("/")
+def get_companies(db: Session = Depends(get_db)):
+    return db.query(models.Company).all()
+
+
+# ⭐ 거래처 삭제
+@router.delete("/{company_id}")
+def delete_company(company_id: int, db: Session = Depends(get_db)):
+    company = db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+
+    if not company:
+        raise Exception("거래처 없음")
+
+    db.delete(company)
+    db.commit()
+
+    return {"message": "삭제 완료"}
+
+
+# ⭐ 거래처 수정
+@router.put("/{company_id}")
+def update_company(company_id: int, data: dict, db: Session = Depends(get_db)):
+    company = db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+
+    if not company:
+        raise Exception("거래처 없음")
+
+    company.name = data.get("name", company.name)
+    company.phone = data.get("phone", company.phone)
+    company.fax = data.get("fax", company.fax)
+    company.address = data.get("address", company.address)
+
+    db.commit()
+
+    return company
