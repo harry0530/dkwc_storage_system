@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import Base, engine, run_startup_migrations
+from app.database import Base, engine
 
 from app.routes import product, bom, inventory, transaction, production, order, shipment, product_alias
 import app.routes.company as company
@@ -18,7 +18,6 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
-run_startup_migrations()
 
 app.include_router(product.router)
 app.include_router(bom.router)
