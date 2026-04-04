@@ -6,6 +6,7 @@ from app.routes import product, bom, inventory, transaction, production, order, 
 import app.routes.company as company
 from app.routes import log
 
+
 app = FastAPI()
 
 app.add_middleware(

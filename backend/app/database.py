@@ -1,37 +1,45 @@
-from pathlib import Path
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+import os
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "inventory.db"
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+# =====================
+# 🔥 DB URL (Render PostgreSQL)
+# =====================
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+# 로컬 테스트용 fallback (선택)
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./inventory.db"
+
+# =====================
+# 🔥 PostgreSQL 대응
+# =====================
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False}
+    DATABASE_URL,
+    pool_pre_ping=True
 )
-SessionLocal = sessionmaker(bind=engine)
+
+# SQLite일 때만 옵션 적용
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 
 Base = declarative_base()
 
-
+# =====================
+# DB 세션
+# =====================
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-def run_startup_migrations():
-    """Apply lightweight SQLite schema fixes for local development."""
-    inspector = inspect(engine)
-    tables = set(inspector.get_table_names())
-
-    if "products" in tables:
-        columns = {col["name"] for col in inspector.get_columns("products")}
-        with engine.begin() as conn:
-            if "min_stock" not in columns:
-                conn.execute(
-                    text("ALTER TABLE products ADD COLUMN min_stock INTEGER DEFAULT 0")
-                )

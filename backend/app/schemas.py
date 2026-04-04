@@ -6,6 +6,7 @@ class ProductCreate(BaseModel):
     name: str
     type: str
     location: str
+    min_stock: int   # 🔥 추가
 
 
 class BOMCreate(BaseModel):
