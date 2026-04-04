@@ -31,13 +31,16 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { signOut } from "firebase/auth";
+import { auth } from "./firebase";
 
 const router = useRouter();
 const route = useRoute();
 const showLogout = computed(() => route.path !== "/login");
 
 const logout = () => {
-  localStorage.removeItem("access_token");
-  router.push("/login");
+  signOut(auth).finally(() => {
+    router.push("/login");
+  });
 };
 </script>

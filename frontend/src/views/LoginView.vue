@@ -3,8 +3,8 @@
     <h2 class="text-xl font-bold mb-4">로그인</h2>
 
     <div class="mb-3">
-      <label class="block text-sm font-medium mb-1">아이디</label>
-      <input v-model="username" class="w-full border rounded px-3 py-2" placeholder="아이디" />
+      <label class="block text-sm font-medium mb-1">아이디(이메일)</label>
+      <input v-model="username" class="w-full border rounded px-3 py-2" placeholder="아이디(이메일)" />
     </div>
 
     <div class="mb-4">
@@ -21,20 +21,19 @@
       >
         로그인
       </button>
-      <button
-        class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-medium"
-        @click="handleRegister"
-      >
-        회원가입
-      </button>
     </div>
+
+    <p class="text-xs text-gray-500 mt-3">
+      계정 생성은 관리자에게 요청하세요.
+    </p>
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import api from "../api";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../firebase";
 
 const router = useRouter();
 const username = ref("");
@@ -44,31 +43,10 @@ const error = ref("");
 const handleLogin = async () => {
   error.value = "";
   try {
-    const res = await api.post("/auth/login", {
-      username: username.value,
-      password: password.value
-    });
-    localStorage.setItem("access_token", res.data.access_token);
+    await signInWithEmailAndPassword(auth, username.value, password.value);
     router.push("/");
   } catch (e) {
-    error.value = "아이디 또는 비밀번호가 올바르지 않습니다.";
-  }
-};
-
-const handleRegister = async () => {
-  error.value = "";
-  try {
-    await api.post("/auth/register", {
-      username: username.value,
-      password: password.value
-    });
-    await handleLogin();
-  } catch (e) {
-    if (e.response?.status === 409) {
-      error.value = "이미 존재하는 아이디입니다.";
-    } else {
-      error.value = "회원가입에 실패했습니다.";
-    }
+    error.value = "로그인에 실패했습니다. 아이디/비밀번호를 확인하세요.";
   }
 };
 </script>

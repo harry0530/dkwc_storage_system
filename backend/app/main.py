@@ -5,8 +5,7 @@ from app.database import Base, engine
 from app.routes import product, bom, inventory, transaction, production, order, shipment, product_alias
 import app.routes.company as company
 from app.routes import log
-from app.routes import auth
-from app.auth import get_current_user
+from app.firebase_auth import verify_firebase_token
 
 
 app = FastAPI()
@@ -21,9 +20,8 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-protected = [Depends(get_current_user)]
+protected = [Depends(verify_firebase_token)]
 
-app.include_router(auth.router)
 app.include_router(product.router, dependencies=protected)
 app.include_router(bom.router, dependencies=protected)
 app.include_router(inventory.router, dependencies=protected)

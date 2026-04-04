@@ -6,6 +6,7 @@ import OrderView from "../views/OrderView.vue";
 import LogView from "../views/LogView.vue";
 import CompanyView from "../views/CompanyView.vue";
 import LoginView from "../views/LoginView.vue";
+import { getCurrentUser } from "../firebase";
 
 const routes = [
   { path: "/login", component: LoginView },
@@ -21,13 +22,13 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("access_token");
-  if (to.meta.requiresAuth && !token) {
+router.beforeEach(async (to, from, next) => {
+  const user = await getCurrentUser();
+  if (to.meta.requiresAuth && !user) {
     next("/login");
     return;
   }
-  if (to.path === "/login" && token) {
+  if (to.path === "/login" && user) {
     next("/");
     return;
   }

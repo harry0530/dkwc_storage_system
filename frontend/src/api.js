@@ -1,12 +1,14 @@
 import axios from "axios";
+import { auth } from "./firebase";
 
 const api = axios.create({
-  baseURL: "https://dkwc-storage-system.onrender.com"
+  baseURL: import.meta.env.VITE_API_BASE_URL || "https://dkwc-storage-system.onrender.com"
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) {
+api.interceptors.request.use(async (config) => {
+  const user = auth.currentUser;
+  if (user) {
+    const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

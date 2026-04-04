@@ -2,26 +2,6 @@ from app import models
 
 
 # =====================
-# 사용자
-# =====================
-def get_user_by_username(db, username: str):
-    return db.query(models.User).filter(
-        models.User.username == username
-    ).first()
-
-
-def create_user(db, username: str, hashed_password: str):
-    user = models.User(
-        username=username,
-        hashed_password=hashed_password
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-# =====================
 # 제품
 # =====================
 def create_product(db, product):
