@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="min-h-screen overflow-y-auto">
 
     <!-- ⭐ 컨테이너 통일 -->
     <div class="max-w-6xl mx-auto px-6 py-6">
@@ -16,7 +16,7 @@
     </div>
 
     <!-- ⭐ 내용도 동일 기준 -->
-    <div class="max-w-6xl mx-auto px-6">
+    <div class="max-w-6xl mx-auto px-6 pb-8">
       <router-view />
     </div>
 
