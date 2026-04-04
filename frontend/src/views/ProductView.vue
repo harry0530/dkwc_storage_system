@@ -189,7 +189,7 @@ onMounted(loadData);
     </div>
 
     <!-- 제품 목록 -->
-    <div class="bg-white shadow rounded-xl overflow-hidden">
+    <div class="bg-white shadow rounded-xl overflow-visible">
       <div class="p-3 border-b bg-gray-50">
         <input
           v-model="productSearch"
@@ -262,12 +262,16 @@ onMounted(loadData);
                     class="border px-1 py-0.5 w-28 text-xs"
                   />
 
-                  <div v-if="showDropdown[p.code]"
-                    class="absolute bg-white border w-full max-h-32 overflow-y-auto z-10">
+                  <div
+                    v-if="showDropdown[p.code]"
+                    @mousedown.prevent
+                    class="absolute bg-white border w-full max-h-40 overflow-y-auto z-20 shadow rounded"
+                  >
 
                     <div
                       v-for="item in filteredParts(p.code)"
                       :key="item.code"
+                      @mousedown.prevent
                       @click="selectPart(p.code, item.code)"
                       class="p-1 hover:bg-gray-100 cursor-pointer text-xs"
                     >
