@@ -5,6 +5,7 @@ import api from "../api";
 const products = ref([]);
 const aliases = ref([]);
 const boms = ref([]);
+const companies = ref([]);
 
 // 제품 입력
 const code = ref("");
@@ -17,6 +18,7 @@ const min_stock = ref("");
 const alias_company = ref("");
 const alias_code = ref("");
 const selected_product_code = ref("");
+const showCompanyDropdown = ref(false);
 
 // BOM 입력 상태
 const bomInput = ref({});
@@ -31,10 +33,12 @@ const loadData = async () => {
   const p = await api.get("/products/");
   const a = await api.get("/product-alias/");
   const b = await api.get("/bom/");
+  const c = await api.get("/companies/");
 
   products.value = p.data;
   aliases.value = a.data;
   boms.value = b.data;
+  companies.value = c.data;
 };
 
 // =====================
@@ -63,7 +67,7 @@ const createProduct = async () => {
 // alias 등록
 // =====================
 const createAlias = async () => {
-  if (!selected_product_code.value) return;
+  if (!selected_product_code.value || !alias_company.value || !alias_code.value) return;
 
   await api.post("/product-alias/", {
     product_code: selected_product_code.value,
@@ -74,6 +78,14 @@ const createAlias = async () => {
   alias_company.value = "";
   alias_code.value = "";
 
+  loadData();
+};
+
+const deleteProduct = async (code) => {
+  const ok = window.confirm(`${code} 제품을 삭제할까요? 관련 BOM/재고/별칭도 함께 삭제됩니다.`);
+  if (!ok) return;
+
+  await api.delete(`/products/${code}`);
   loadData();
 };
 
@@ -141,6 +153,18 @@ const filteredProducts = computed(() => {
   );
 });
 
+const filteredCompanies = computed(() => {
+  const keyword = (alias_company.value || "").trim().toLowerCase();
+  return companies.value.filter((c) =>
+    (c.name || "").toLowerCase().includes(keyword)
+  );
+});
+
+const selectCompany = (name) => {
+  alias_company.value = name;
+  showCompanyDropdown.value = false;
+};
+
 onMounted(loadData);
 </script>
 
@@ -179,7 +203,30 @@ onMounted(loadData);
         </option>
       </select>
 
-      <input v-model="alias_company" placeholder="회사" class="border px-2 py-1 h-9 rounded w-32" />
+      <div class="relative w-32">
+        <input
+          v-model="alias_company"
+          @focus="showCompanyDropdown = true"
+          @blur="setTimeout(() => showCompanyDropdown = false, 200)"
+          placeholder="회사"
+          class="border px-2 py-1 h-9 rounded w-full"
+        />
+        <div
+          v-if="showCompanyDropdown"
+          @mousedown.prevent
+          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded"
+        >
+          <div
+            v-for="c in filteredCompanies"
+            :key="c.id"
+            @mousedown.prevent
+            @click="selectCompany(c.name)"
+            class="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+          >
+            {{ c.name }}
+          </div>
+        </div>
+      </div>
       <input v-model="alias_code" placeholder="회사 품번" class="border px-2 py-1 h-9 rounded w-32" />
 
       <button @click="createAlias" class="bg-green-500 text-white px-3 h-9 rounded">
@@ -207,6 +254,7 @@ onMounted(loadData);
             <th class="p-3">최소재고</th>
             <th class="p-3">회사별 품번</th>
             <th class="p-3">BOM</th>
+            <th class="p-3">삭제</th>
           </tr>
         </thead>
 
@@ -296,6 +344,15 @@ onMounted(loadData);
 
               </div>
 
+            </td>
+
+            <td class="p-3">
+              <button
+                @click="deleteProduct(p.code)"
+                class="bg-red-500 text-white px-2 py-1 rounded text-xs"
+              >
+                삭제
+              </button>
             </td>
 
           </tr>
