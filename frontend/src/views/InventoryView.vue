@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import api from "../api";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const inventory = ref([]);
 const searchCode = ref("");
@@ -160,7 +163,7 @@ const filteredInventory = computed(() => {
 });
 
 // =====================
-// 재고 현황 PDF/프린트
+// 재고 현황 PDF/엑셀
 // =====================
 const inventoryReportRows = computed(() => {
   return inventory.value
@@ -172,75 +175,57 @@ const inventoryReportRows = computed(() => {
     .sort((a, b) => a.code.localeCompare(b.code));
 });
 
-const buildInventoryReportHtml = (modeLabel) => {
+const buildTimestampTag = () => {
+  const date = new Date();
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
+    date.getDate()
+  )}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+};
+
+const saveInventoryPdf = () => {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const timestamp = new Date().toLocaleString("ko-KR");
-  const rows = inventoryReportRows.value
-    .map(
-      (r, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${r.code}</td>
-          <td>${r.name || "-"}</td>
-          <td class="qty">${r.quantity}</td>
-        </tr>`
-    )
-    .join("");
+  doc.setFontSize(14);
+  doc.text("재고 현황", 14, 16);
+  doc.setFontSize(10);
+  doc.text(`생성일시: ${timestamp}`, 14, 22);
 
-  return `<!doctype html>
-  <html lang="ko">
-    <head>
-      <meta charset="utf-8" />
-      <title>재고 현황 - ${modeLabel}</title>
-      <style>
-        body { font-family: Arial, sans-serif; color: #111; padding: 24px; }
-        h1 { font-size: 20px; margin: 0 0 8px; }
-        .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-        th { background: #f5f5f5; }
-        td.qty { text-align: right; }
-        .note { font-size: 11px; color: #666; margin-top: 12px; }
-      </style>
-    </head>
-    <body>
-      <h1>재고 현황</h1>
-      <div class="meta">생성일시: ${timestamp}</div>
-      <table>
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>품번</th>
-            <th>제품명</th>
-            <th>재고</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows || `<tr><td colspan="4">재고 데이터가 없습니다.</td></tr>`}
-        </tbody>
-      </table>
-      <div class="note">PDF 저장은 인쇄 대화상자에서 "PDF로 저장"을 선택하세요.</div>
-      <script>
-        window.onload = () => { window.focus(); window.print(); };
-        window.onafterprint = () => { window.close(); };
-      <\\/script>
-    </body>
-  </html>`;
+  const body = inventoryReportRows.value.map((r, i) => [
+    String(i + 1),
+    r.code,
+    r.name || "-",
+    String(r.quantity)
+  ]);
+
+  autoTable(doc, {
+    startY: 26,
+    head: [["No", "품번", "제품명", "재고"]],
+    body,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [240, 240, 240], textColor: 20 },
+    columnStyles: { 3: { halign: "right" } }
+  });
+
+  const filename = `inventory_${buildTimestampTag()}.pdf`;
+  doc.save(filename);
 };
 
-const openInventoryPrintWindow = (mode) => {
-  const modeLabel = mode === "pdf" ? "PDF 저장" : "프린트";
-  const popup = window.open("", "_blank");
-  if (!popup) {
-    alert("팝업이 차단되어 재고 현황을 열 수 없습니다.");
-    return;
-  }
-  popup.document.open();
-  popup.document.write(buildInventoryReportHtml(modeLabel));
-  popup.document.close();
-};
+const exportInventoryExcel = () => {
+  const rows = inventoryReportRows.value.map((r, i) => ({
+    No: i + 1,
+    품번: r.code,
+    제품명: r.name || "-",
+    재고: r.quantity
+  }));
 
-const saveInventoryPdf = () => openInventoryPrintWindow("pdf");
-const printInventory = () => openInventoryPrintWindow("print");
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "재고현황");
+
+  const filename = `inventory_${buildTimestampTag()}.xlsx`;
+  XLSX.writeFile(wb, filename);
+};
 
 onMounted(loadInventory);
 </script>
@@ -258,10 +243,10 @@ onMounted(loadInventory);
           재고 PDF 저장
         </button>
         <button
-          @click="printInventory"
-          class="bg-gray-700 text-white px-3 h-9 rounded text-sm"
+          @click="exportInventoryExcel"
+          class="bg-emerald-600 text-white px-3 h-9 rounded text-sm"
         >
-          재고 프린트
+          재고 엑셀 저장
         </button>
       </div>
     </div>
