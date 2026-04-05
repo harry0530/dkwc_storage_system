@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, crud
@@ -34,3 +34,37 @@ def get_inventory(db: Session = Depends(get_db)):
 @router.post("/")
 def create_inventory(inv: schemas.InventoryCreate, db: Session = Depends(get_db)):
     return crud.create_inventory(db, inv)
+
+
+# ✅ 재고 수정 (수량 직접 수정)
+@router.put("/{product_code}")
+def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db)):
+    inv = db.query(models.Inventory).filter(
+        models.Inventory.product_code == product_code
+    ).first()
+
+    if not inv:
+        raise HTTPException(status_code=404, detail="재고 없음")
+
+    if "quantity" in data:
+        inv.quantity = data["quantity"]
+
+    db.commit()
+
+    return {"message": "수정 완료"}
+
+
+# ✅ 재고 삭제 (목록에서 제거)
+@router.delete("/{product_code}")
+def delete_inventory(product_code: str, db: Session = Depends(get_db)):
+    inv = db.query(models.Inventory).filter(
+        models.Inventory.product_code == product_code
+    ).first()
+
+    if not inv:
+        raise HTTPException(status_code=404, detail="재고 없음")
+
+    db.delete(inv)
+    db.commit()
+
+    return {"message": "삭제 완료"}

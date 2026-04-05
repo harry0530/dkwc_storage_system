@@ -26,6 +26,11 @@ const searchInput = ref({});
 const showDropdown = ref({});
 const productSearch = ref("");
 
+// alias 수정
+const editingAliasId = ref("");
+const editAliasCompany = ref("");
+const editAliasCode = ref("");
+
 // =====================
 // 데이터 로드
 // =====================
@@ -131,7 +136,8 @@ const filteredParts = (parent_code) => {
   const keyword = searchInput.value[parent_code] || "";
 
   return products.value.filter(p =>
-    p.code.includes(keyword) || p.name.includes(keyword)
+    p.type === "PART" &&
+    (p.code.includes(keyword) || p.name.includes(keyword))
   );
 };
 
@@ -146,8 +152,9 @@ const selectPart = (parent_code, code) => {
 
 const filteredProducts = computed(() => {
   const keyword = (productSearch.value || "").trim().toLowerCase();
-  if (!keyword) return products.value;
-  return products.value.filter((p) =>
+  const finished = products.value.filter((p) => p.type === "FINISHED");
+  if (!keyword) return finished;
+  return finished.filter((p) =>
     (p.code || "").toLowerCase().includes(keyword) ||
     (p.name || "").toLowerCase().includes(keyword)
   );
@@ -163,6 +170,34 @@ const filteredCompanies = computed(() => {
 const selectCompany = (name) => {
   alias_company.value = name;
   showCompanyDropdown.value = false;
+};
+
+const startEditAlias = (alias) => {
+  editingAliasId.value = String(alias.id);
+  editAliasCompany.value = alias.company || "";
+  editAliasCode.value = alias.alias_code || "";
+};
+
+const cancelEditAlias = () => {
+  editingAliasId.value = "";
+  editAliasCompany.value = "";
+  editAliasCode.value = "";
+};
+
+const saveEditAlias = async (aliasId) => {
+  await api.put(`/product-alias/${aliasId}`, {
+    company: editAliasCompany.value,
+    alias_code: editAliasCode.value
+  });
+  cancelEditAlias();
+  loadData();
+};
+
+const deleteAlias = async (aliasId) => {
+  const ok = window.confirm("해당 회사 품번을 삭제할까요?");
+  if (!ok) return;
+  await api.delete(`/product-alias/${aliasId}`);
+  loadData();
 };
 
 onMounted(loadData);
@@ -198,7 +233,7 @@ onMounted(loadData);
 
       <select v-model="selected_product_code" class="border px-2 py-1 h-9 rounded w-40">
         <option value="">제품 선택</option>
-        <option v-for="p in products" :key="p.code" :value="p.code">
+        <option v-for="p in products.filter(x => x.type === 'FINISHED')" :key="p.code" :value="p.code">
           {{ p.name }} ({{ p.code }})
         </option>
       </select>
@@ -274,9 +309,38 @@ onMounted(loadData);
               <div
                 v-for="a in aliases.filter(x => x.product_code === p.code)"
                 :key="a.id"
-                class="text-sm"
+                class="text-sm flex items-center gap-2"
               >
-                {{ a.company }} → {{ a.alias_code }}
+                <template v-if="editingAliasId === String(a.id)">
+                  <input
+                    v-model="editAliasCompany"
+                    class="border px-1 py-0.5 text-xs w-20"
+                  />
+                  <span class="text-xs text-gray-400">→</span>
+                  <input
+                    v-model="editAliasCode"
+                    class="border px-1 py-0.5 text-xs w-24"
+                  />
+                  <button @click="saveEditAlias(a.id)"
+                    class="bg-blue-500 text-white px-1 rounded text-xs">
+                    저장
+                  </button>
+                  <button @click="cancelEditAlias"
+                    class="bg-gray-200 text-gray-700 px-1 rounded text-xs">
+                    취소
+                  </button>
+                </template>
+                <template v-else>
+                  <span>{{ a.company }} → {{ a.alias_code }}</span>
+                  <button @click="startEditAlias(a)"
+                    class="bg-blue-500 text-white px-1 rounded text-xs">
+                    수정
+                  </button>
+                  <button @click="deleteAlias(a.id)"
+                    class="bg-red-500 text-white px-1 rounded text-xs">
+                    삭제
+                  </button>
+                </template>
               </div>
             </td>
 

@@ -148,3 +148,20 @@ def undo(order_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "생산 취소 완료"}
+
+
+# ⭐ 주문 삭제 (거부)
+@router.delete("/{order_id}")
+def delete_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+
+    if not order:
+        raise Exception("주문 없음")
+
+    if order.status != "WAIT":
+        raise Exception("대기 상태만 삭제 가능")
+
+    db.delete(order)
+    db.commit()
+
+    return {"message": "삭제 완료"}

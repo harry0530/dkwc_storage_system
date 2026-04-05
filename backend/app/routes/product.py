@@ -60,3 +60,22 @@ def delete_product(product_code: str, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "삭제 완료"}
+
+
+# ⭐ 제품 수정
+@router.put("/{product_code}")
+def update_product(product_code: str, data: dict, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(
+        models.Product.code == product_code
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="제품 없음")
+
+    product.name = data.get("name", product.name)
+    product.type = data.get("type", product.type)
+    product.location = data.get("location", product.location)
+    product.min_stock = data.get("min_stock", product.min_stock)
+
+    db.commit()
+    return product
