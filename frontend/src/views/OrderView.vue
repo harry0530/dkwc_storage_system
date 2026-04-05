@@ -196,12 +196,117 @@ const undoProduction = async (id) => {
 };
 
 onMounted(loadAll);
+
+// =====================
+// 재고 현황 PDF/프린트
+// =====================
+const inventoryReportRows = computed(() => {
+  return inventory.value
+    .map((inv) => {
+      const code = inv.product_code || inv.code || "";
+      const product = products.value.find(
+        (p) => clean(p.code) === clean(code)
+      );
+      return {
+        code,
+        name: product ? product.name : "",
+        quantity: Number(inv.quantity || 0)
+      };
+    })
+    .sort((a, b) => a.code.localeCompare(b.code));
+});
+
+const buildInventoryReportHtml = (modeLabel) => {
+  const timestamp = new Date().toLocaleString("ko-KR");
+  const rows = inventoryReportRows.value
+    .map(
+      (r, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${r.code}</td>
+          <td>${r.name || "-"}</td>
+          <td class="qty">${r.quantity}</td>
+        </tr>`
+    )
+    .join("");
+
+  return `<!doctype html>
+  <html lang="ko">
+    <head>
+      <meta charset="utf-8" />
+      <title>재고 현황 - ${modeLabel}</title>
+      <style>
+        body { font-family: Arial, sans-serif; color: #111; padding: 24px; }
+        h1 { font-size: 20px; margin: 0 0 8px; }
+        .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+        th { background: #f5f5f5; }
+        td.qty { text-align: right; }
+        .note { font-size: 11px; color: #666; margin-top: 12px; }
+      </style>
+    </head>
+    <body>
+      <h1>재고 현황</h1>
+      <div class="meta">생성일시: ${timestamp}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>품번</th>
+            <th>제품명</th>
+            <th>재고</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="4">재고 데이터가 없습니다.</td></tr>`}
+        </tbody>
+      </table>
+      <div class="note">PDF 저장은 인쇄 대화상자에서 "PDF로 저장"을 선택하세요.</div>
+      <script>
+        window.onload = () => { window.focus(); window.print(); };
+        window.onafterprint = () => { window.close(); };
+      </script>
+    </body>
+  </html>`;
+};
+
+const openInventoryPrintWindow = (mode) => {
+  const modeLabel = mode === "pdf" ? "PDF 저장" : "프린트";
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    alert("팝업이 차단되어 재고 현황을 열 수 없습니다.");
+    return;
+  }
+  popup.document.open();
+  popup.document.write(buildInventoryReportHtml(modeLabel));
+  popup.document.close();
+};
+
+const saveInventoryPdf = () => openInventoryPrintWindow("pdf");
+const printInventory = () => openInventoryPrintWindow("print");
 </script>
 
 <template>
   <div>
 
-    <h2 class="text-3xl font-bold mb-6">📋 주문 관리</h2>
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-3xl font-bold">📋 주문 관리</h2>
+      <div class="flex gap-2">
+        <button
+          @click="saveInventoryPdf"
+          class="bg-indigo-600 text-white px-3 h-9 rounded text-sm"
+        >
+          재고 PDF 저장
+        </button>
+        <button
+          @click="printInventory"
+          class="bg-gray-700 text-white px-3 h-9 rounded text-sm"
+        >
+          재고 프린트
+        </button>
+      </div>
+    </div>
 
     <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-3 items-center">
 
@@ -319,6 +424,35 @@ onMounted(loadAll);
           </tr>
         </tbody>
 
+      </table>
+    </div>
+
+    <div class="bg-white shadow rounded-xl overflow-hidden mt-6">
+      <div class="p-3 border-b font-semibold">재고 현황</div>
+      <table class="w-full text-left">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="p-3">No</th>
+            <th class="p-3">품번</th>
+            <th class="p-3">제품명</th>
+            <th class="p-3 text-right">재고</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(row, i) in inventoryReportRows"
+            :key="`${row.code}-${i}`"
+            class="border-t"
+          >
+            <td class="p-3">{{ i + 1 }}</td>
+            <td class="p-3">{{ row.code }}</td>
+            <td class="p-3">{{ row.name || "-" }}</td>
+            <td class="p-3 text-right">{{ row.quantity }}</td>
+          </tr>
+          <tr v-if="inventoryReportRows.length === 0" class="border-t">
+            <td class="p-3" colspan="4">재고 데이터가 없습니다.</td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
