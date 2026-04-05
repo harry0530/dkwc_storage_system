@@ -206,32 +206,32 @@ onMounted(loadData);
 <template>
   <div>
 
-    <h2 class="text-3xl font-bold mb-6">📦 상품 + BOM 관리</h2>
+    <h2 class="page-title mb-6">📦 상품 + BOM 관리</h2>
 
     <!-- 제품 등록 -->
-    <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-2 flex-wrap">
+    <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
 
-      <input v-model="code" placeholder="품번" class="border px-2 py-1 h-9 rounded w-32" />
-      <input v-model="name" placeholder="제품명" class="border px-2 py-1 h-9 rounded w-32" />
+      <input v-model="code" placeholder="품번" class="input w-32" />
+      <input v-model="name" placeholder="제품명" class="input w-32" />
 
-      <select v-model="type" class="border px-2 py-1 h-9 rounded">
+      <select v-model="type" class="input">
         <option value="PART">부품</option>
         <option value="FINISHED">완제품</option>
       </select>
 
-      <input v-model="location" placeholder="위치" class="border px-2 py-1 h-9 rounded w-32" />
-      <input v-model="min_stock" type="number" placeholder="최소재고" class="border px-2 py-1 h-9 rounded w-24" />
+      <input v-model="location" placeholder="위치" class="input w-32" />
+      <input v-model="min_stock" type="number" placeholder="최소재고" class="input w-24" />
 
-      <button @click="createProduct" class="bg-blue-500 text-white px-3 h-9 rounded">
+      <button @click="createProduct" class="btn btn-primary">
         제품 등록
       </button>
 
     </div>
 
     <!-- alias 등록 -->
-    <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-2 flex-wrap">
+    <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
 
-      <select v-model="selected_product_code" class="border px-2 py-1 h-9 rounded w-40">
+      <select v-model="selected_product_code" class="input w-40">
         <option value="">제품 선택</option>
         <option v-for="p in products.filter(x => x.type === 'FINISHED')" :key="p.code" :value="p.code">
           {{ p.name }} ({{ p.code }})
@@ -244,45 +244,45 @@ onMounted(loadData);
           @focus="showCompanyDropdown = true"
           @blur="setTimeout(() => showCompanyDropdown = false, 200)"
           placeholder="회사"
-          class="border px-2 py-1 h-9 rounded w-full"
+          class="input w-full"
         />
         <div
           v-if="showCompanyDropdown"
           @mousedown.prevent
-          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded"
+          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
         >
           <div
             v-for="c in filteredCompanies"
             :key="c.id"
             @mousedown.prevent
             @click="selectCompany(c.name)"
-            class="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
           >
             {{ c.name }}
           </div>
         </div>
       </div>
-      <input v-model="alias_code" placeholder="회사 품번" class="border px-2 py-1 h-9 rounded w-32" />
+      <input v-model="alias_code" placeholder="회사 품번" class="input w-32" />
 
-      <button @click="createAlias" class="bg-green-500 text-white px-3 h-9 rounded">
+      <button @click="createAlias" class="btn btn-success">
         품번 추가
       </button>
 
     </div>
 
     <!-- 제품 목록 -->
-    <div class="bg-white shadow rounded-xl overflow-visible">
-      <div class="p-3 border-b bg-gray-50">
+    <div class="panel overflow-visible">
+      <div class="p-3 border-b bg-slate-50">
         <input
           v-model="productSearch"
           placeholder="품번/제품명 검색"
-          class="border px-2 py-1 h-9 rounded w-56 text-sm"
+          class="input w-56"
         />
       </div>
 
       <table class="w-full text-left">
 
-        <thead class="bg-gray-100">
+        <thead class="table-head">
           <tr>
             <th class="p-3">제품</th>
             <th class="p-3">위치</th>
@@ -314,30 +314,30 @@ onMounted(loadData);
                 <template v-if="editingAliasId === String(a.id)">
                   <input
                     v-model="editAliasCompany"
-                    class="border px-1 py-0.5 text-xs w-20"
+                    class="input h-7 px-2 text-xs w-20"
                   />
                   <span class="text-xs text-gray-400">→</span>
                   <input
                     v-model="editAliasCode"
-                    class="border px-1 py-0.5 text-xs w-24"
+                    class="input h-7 px-2 text-xs w-24"
                   />
                   <button @click="saveEditAlias(a.id)"
-                    class="bg-blue-500 text-white px-1 rounded text-xs">
+                    class="btn btn-info h-7 px-2 text-xs">
                     저장
                   </button>
                   <button @click="cancelEditAlias"
-                    class="bg-gray-200 text-gray-700 px-1 rounded text-xs">
+                    class="btn btn-secondary h-7 px-2 text-xs">
                     취소
                   </button>
                 </template>
                 <template v-else>
                   <span>{{ a.company }} → {{ a.alias_code }}</span>
                   <button @click="startEditAlias(a)"
-                    class="bg-blue-500 text-white px-1 rounded text-xs">
+                    class="btn btn-info h-7 px-2 text-xs">
                     수정
                   </button>
                   <button @click="deleteAlias(a.id)"
-                    class="bg-red-500 text-white px-1 rounded text-xs">
+                    class="btn btn-danger h-7 px-2 text-xs">
                     삭제
                   </button>
                 </template>
@@ -356,7 +356,7 @@ onMounted(loadData);
                 {{ b.child_code }} x {{ b.quantity }}
 
                 <button @click="deleteBOM(b.id)"
-                  class="bg-red-500 text-white px-1 rounded text-xs">
+                  class="btn btn-danger h-7 px-2 text-xs">
                   삭제
                 </button>
               </div>
@@ -371,7 +371,7 @@ onMounted(loadData);
                     @focus="showDropdown[p.code] = true"
                     @blur="setTimeout(() => showDropdown[p.code] = false, 200)"
                     placeholder="부품 검색"
-                    class="border px-1 py-0.5 w-28 text-xs"
+                    class="input h-7 w-28 text-xs"
                   />
 
                   <div
@@ -380,15 +380,15 @@ onMounted(loadData);
                     class="absolute bg-white border w-full max-h-40 overflow-y-auto z-20 shadow rounded"
                   >
 
-                    <div
-                      v-for="item in filteredParts(p.code)"
-                      :key="item.code"
-                      @mousedown.prevent
-                      @click="selectPart(p.code, item.code)"
-                      class="p-1 hover:bg-gray-100 cursor-pointer text-xs"
-                    >
-                      {{ item.name }} ({{ item.code }})
-                    </div>
+                  <div
+                    v-for="item in filteredParts(p.code)"
+                    :key="item.code"
+                    @mousedown.prevent
+                    @click="selectPart(p.code, item.code)"
+                    class="p-1 hover:bg-slate-100 cursor-pointer text-xs"
+                  >
+                    {{ item.name }} ({{ item.code }})
+                  </div>
 
                   </div>
 
@@ -398,11 +398,11 @@ onMounted(loadData);
                   v-model="(bomInput[p.code] ||= {}).qty"
                   type="number"
                   placeholder="수량"
-                  class="border px-1 py-0.5 w-16 text-xs"
+                  class="input h-7 w-16 text-xs"
                 />
 
                 <button @click="addBOM(p.code)"
-                  class="bg-blue-500 text-white px-1 text-xs">
+                  class="btn btn-primary h-7 px-2 text-xs">
                   +
                 </button>
 
@@ -413,7 +413,7 @@ onMounted(loadData);
             <td class="p-3">
               <button
                 @click="deleteProduct(p.code)"
-                class="bg-red-500 text-white px-2 py-1 rounded text-xs"
+                class="btn btn-danger h-8 px-2 text-xs"
               >
                 삭제
               </button>

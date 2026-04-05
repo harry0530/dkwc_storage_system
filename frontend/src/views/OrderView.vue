@@ -222,16 +222,16 @@ const deleteOrder = async (id) => {
   <div>
 
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-3xl font-bold">📋 주문 관리</h2>
+      <h2 class="page-title">📋 주문 관리</h2>
       <button
         @click="showCompleted = !showCompleted"
-        class="bg-gray-700 text-white px-3 h-9 rounded text-sm"
+        class="btn btn-secondary"
       >
         {{ showCompleted ? "대기목록 보기" : "완료내역 보기" }}
       </button>
     </div>
 
-    <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-3 items-center">
+    <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap">
 
       <div class="relative w-40">
         <input
@@ -240,14 +240,14 @@ const deleteOrder = async (id) => {
           @focus="showCompanyDropdown = true"
           @blur="setTimeout(() => showCompanyDropdown = false, 200)"
           placeholder="회사"
-          class="border px-3 py-1 h-9 rounded w-full text-sm"
+          class="input w-full"
         />
         <div v-if="showCompanyDropdown"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto">
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="c in filteredCompanies"
             :key="c.id"
             @click="selectCompany(c.name)"
-            class="p-2 hover:bg-gray-100 cursor-pointer">
+            class="p-2 hover:bg-slate-100 cursor-pointer">
             {{ c.name }}
           </div>
         </div>
@@ -260,14 +260,14 @@ const deleteOrder = async (id) => {
           @focus="showCodeDropdown = true"
           @blur="setTimeout(() => showCodeDropdown = false, 200)"
           placeholder="품번"
-          class="border px-3 py-1 h-9 rounded w-full text-sm"
+          class="input w-full"
         />
         <div v-if="showCodeDropdown"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto">
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="a in filteredCodes"
             :key="a.id"
             @click="selectCode(a.alias_code)"
-            class="p-2 hover:bg-gray-100 cursor-pointer">
+            class="p-2 hover:bg-slate-100 cursor-pointer">
             {{ a.alias_code }}
           </div>
         </div>
@@ -282,10 +282,10 @@ const deleteOrder = async (id) => {
         type="number"
         min="1"
         placeholder="수량"
-        class="border px-3 py-1 h-9 rounded w-24 text-sm text-gray-900" />
+        class="input w-24" />
 
       <button @click="createOrder"
-        class="bg-blue-500 text-white px-4 h-9 rounded">
+        class="btn btn-primary">
         주문 생성
       </button>
 
@@ -296,10 +296,10 @@ const deleteOrder = async (id) => {
       ⚠ {{ stockWarning }}
     </div>
 
-    <div class="bg-white shadow rounded-xl overflow-hidden">
+    <div class="panel overflow-hidden">
       <table class="w-full text-left">
 
-        <thead class="bg-gray-100">
+        <thead class="table-head">
           <tr>
             <th class="p-3">ID</th>
             <th class="p-3">제품</th>
@@ -333,19 +333,19 @@ const deleteOrder = async (id) => {
             <td class="p-3 flex gap-2">
               <button v-if="o.status === 'WAIT'"
                 @click="runProduction(o.id)"
-                class="bg-green-500 text-white px-2 py-1 text-sm rounded">
+                class="btn btn-success h-8 px-2 text-xs">
                 생산
               </button>
 
               <button v-if="o.status === 'WAIT'"
                 @click="deleteOrder(o.id)"
-                class="bg-red-500 text-white px-2 py-1 text-sm rounded">
+                class="btn btn-danger h-8 px-2 text-xs">
                 삭제
               </button>
 
               <button v-if="o.status === 'DONE'"
                 @click="undoProduction(o.id)"
-                class="bg-red-500 text-white px-2 py-1 text-sm rounded">
+                class="btn btn-secondary h-8 px-2 text-xs">
                 취소
               </button>
             </td>

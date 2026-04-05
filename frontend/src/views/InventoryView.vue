@@ -234,17 +234,17 @@ onMounted(loadInventory);
   <div>
 
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-3xl font-bold">📦 재고 관리</h2>
+      <h2 class="page-title">📦 재고 관리</h2>
       <div class="flex gap-2">
         <button
           @click="saveInventoryPdf"
-          class="bg-indigo-600 text-white px-3 h-9 rounded text-sm"
+          class="btn btn-info"
         >
           재고 PDF 저장
         </button>
         <button
           @click="exportInventoryExcel"
-          class="bg-emerald-600 text-white px-3 h-9 rounded text-sm"
+          class="btn btn-success"
         >
           재고 엑셀 저장
         </button>
@@ -252,45 +252,45 @@ onMounted(loadInventory);
     </div>
 
     <!-- 입력 -->
-    <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-2 items-center">
+    <div class="panel p-3 mb-6 flex gap-2 items-center flex-wrap">
 
       <input v-model="code"
         placeholder="품번"
-        class="border px-3 py-1 h-9 rounded text-sm w-40" />
+        class="input w-40" />
 
       <input v-model="quantity"
         type="number"
         placeholder="수량"
-        class="border px-3 py-1 h-9 rounded text-sm w-24" />
+        class="input w-24" />
 
       <button @click="addStock"
-        class="bg-blue-500 text-white px-4 h-9 rounded text-sm">
+        class="btn btn-primary">
         입고
       </button>
 
       <input v-model="searchCode"
         placeholder="품번 검색"
-        class="border px-3 py-1 h-9 rounded text-sm w-48 ml-auto" />
+        class="input w-48 ml-auto" />
 
     </div>
 
     <!-- 수정 -->
-    <div v-if="editingCode" class="bg-white shadow rounded-xl p-3 mb-6">
+    <div v-if="editingCode" class="panel p-3 mb-6">
       <div class="font-semibold mb-2">재고 정보 수정: {{ editingCode }}</div>
       <div class="flex flex-wrap gap-2 items-center">
         <input v-model="editName" placeholder="제품명"
-          class="border px-2 py-1 h-9 rounded w-40 text-sm" />
+          class="input w-40" />
         <input v-model="editLocation" placeholder="위치"
-          class="border px-2 py-1 h-9 rounded w-32 text-sm" />
+          class="input w-32" />
         <input v-model="editMinStock" type="number" placeholder="최소재고"
-          class="border px-2 py-1 h-9 rounded w-24 text-sm" />
+          class="input w-24" />
         <input v-model="editQuantity" type="number" placeholder="재고"
-          class="border px-2 py-1 h-9 rounded w-24 text-sm" />
+          class="input w-24" />
 
-        <button @click="saveEdit" class="bg-blue-600 text-white px-3 h-9 rounded text-sm">
+        <button @click="saveEdit" class="btn btn-primary">
           저장
         </button>
-        <button @click="cancelEdit" class="bg-gray-200 text-gray-800 px-3 h-9 rounded text-sm">
+        <button @click="cancelEdit" class="btn btn-secondary">
           취소
         </button>
       </div>
@@ -299,7 +299,7 @@ onMounted(loadInventory);
     <!-- 재고 부족 -->
     <div
       v-if="lowStockItems.length"
-      class="mb-4 p-3 bg-red-100 text-red-700 rounded"
+      class="mb-4 p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-100"
     >
       ⚠️ 재고 부족 항목이 있습니다
       <div class="mt-2 text-sm">
@@ -314,10 +314,10 @@ onMounted(loadInventory);
     </div>
 
     <!-- 재고 테이블 -->
-    <div class="bg-white shadow rounded-xl overflow-hidden">
+    <div class="panel overflow-hidden">
       <table class="w-full text-left">
 
-        <thead class="bg-gray-100">
+        <thead class="table-head">
           <tr>
             <th class="p-3">제품</th>
             <th class="p-3">위치</th>
@@ -331,7 +331,7 @@ onMounted(loadInventory);
           <tr
             v-for="item in filteredInventory"
             :key="item.code"
-            class="border-t hover:bg-gray-100"
+            class="border-t hover:bg-slate-50"
           >
 
             <!-- ⭐ 클릭은 여기(td)에 걸어야 함 -->
@@ -353,11 +353,11 @@ onMounted(loadInventory);
             <td class="p-3">
               <div class="flex gap-2">
                 <button @click="startEdit(item)"
-                  class="bg-blue-500 text-white px-2 py-1 text-xs rounded">
+                  class="btn btn-info h-7 px-2 text-xs">
                   수정
                 </button>
                 <button @click="deleteInventoryItem(item.code)"
-                  class="bg-red-500 text-white px-2 py-1 text-xs rounded">
+                  class="btn btn-danger h-7 px-2 text-xs">
                   삭제
                 </button>
               </div>
@@ -383,10 +383,10 @@ onMounted(loadInventory);
         📊 {{ selectedProduct }} 로그
       </h3>
 
-      <div class="bg-white shadow rounded-xl overflow-hidden">
+      <div class="panel overflow-hidden">
         <table class="w-full text-left">
 
-          <thead class="bg-gray-100">
+          <thead class="table-head">
             <tr>
               <th class="p-3">시간</th>
               <th class="p-3">수량</th>

@@ -1,3 +1,30 @@
+@import url("https://fonts.googleapis.com/css2?family=Spline+Sans:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body {
+    font-family: "Spline Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    color: #0f172a;
+    background: radial-gradient(1200px 600px at 10% -20%, #e0f2fe 0%, transparent 60%),
+      radial-gradient(1000px 600px at 110% 10%, #fef9c3 0%, transparent 60%),
+      #f8fafc;
+  }
+}
+
+@layer components {
+  .app-container { @apply max-w-6xl mx-auto px-6; }
+  .page-title { @apply text-3xl font-semibold tracking-tight text-slate-900; }
+  .panel { @apply bg-white/80 backdrop-blur border border-white/60 shadow-[0_14px_40px_rgba(15,23,42,0.08)] rounded-2xl; }
+  .panel-header { @apply px-4 py-3 border-b border-slate-100 font-semibold text-slate-800; }
+  .btn { @apply inline-flex items-center gap-2 px-3 h-9 rounded-lg text-sm font-medium transition; }
+  .btn-primary { @apply bg-slate-900 text-white hover:bg-slate-800; }
+  .btn-secondary { @apply bg-slate-100 text-slate-800 hover:bg-slate-200; }
+  .btn-danger { @apply bg-rose-500 text-white hover:bg-rose-600; }
+  .btn-info { @apply bg-sky-600 text-white hover:bg-sky-700; }
+  .btn-success { @apply bg-emerald-600 text-white hover:bg-emerald-700; }
+  .input { @apply border border-slate-200 bg-white/90 px-3 py-1.5 h-9 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-200; }
+  .table-head { @apply bg-slate-50 text-slate-600; }
+}

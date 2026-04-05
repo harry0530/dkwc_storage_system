@@ -91,41 +91,41 @@ onMounted(loadCompanies);
 <template>
   <div>
 
-    <h2 class="text-3xl font-bold mb-6">🏢 거래처 관리</h2>
+    <h2 class="page-title mb-6">🏢 거래처 관리</h2>
 
-    <div class="bg-white shadow rounded-xl p-3 mb-6 flex gap-2 flex-wrap">
+    <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
 
       <input v-model="name" placeholder="회사명"
-        class="border px-3 py-1 h-9 rounded w-40" />
+        class="input w-40" />
 
       <input v-model="phone" placeholder="전화번호"
-        class="border px-3 py-1 h-9 rounded w-40" />
+        class="input w-40" />
 
       <input v-model="fax" placeholder="팩스"
-        class="border px-3 py-1 h-9 rounded w-40" />
+        class="input w-40" />
 
       <input v-model="address" placeholder="주소"
-        class="border px-3 py-1 h-9 rounded w-60" />
+        class="input w-60" />
 
       <button @click="createCompany"
-        class="bg-blue-500 text-white px-4 h-9 rounded">
+        class="btn btn-primary">
         등록
       </button>
 
     </div>
 
-    <div class="bg-white shadow rounded-xl overflow-hidden">
-      <div class="p-3 border-b bg-gray-50">
+    <div class="panel overflow-hidden">
+      <div class="p-3 border-b bg-slate-50">
         <input
           v-model="companySearch"
           placeholder="회사명/전화번호/팩스/주소 검색"
-          class="border px-2 py-1 h-9 rounded w-72 text-sm"
+          class="input w-72"
         />
       </div>
 
       <table class="w-full text-left">
 
-        <thead class="bg-gray-100">
+        <thead class="table-head">
           <tr>
             <th class="p-3">회사명</th>
             <th class="p-3">전화번호</th>
@@ -141,25 +141,25 @@ onMounted(loadCompanies);
 
             <template v-if="editingCompanyId === String(c.id)">
               <td class="p-3">
-                <input v-model="editName" class="border px-2 py-1 text-sm w-32" />
+                <input v-model="editName" class="input w-32 h-8" />
               </td>
               <td class="p-3">
-                <input v-model="editPhone" class="border px-2 py-1 text-sm w-32" />
+                <input v-model="editPhone" class="input w-32 h-8" />
               </td>
               <td class="p-3">
-                <input v-model="editFax" class="border px-2 py-1 text-sm w-32" />
+                <input v-model="editFax" class="input w-32 h-8" />
               </td>
               <td class="p-3">
-                <input v-model="editAddress" class="border px-2 py-1 text-sm w-48" />
+                <input v-model="editAddress" class="input w-48 h-8" />
               </td>
               <td class="p-3">
                 <div class="flex gap-2">
                   <button @click="saveEditCompany(c.id)"
-                    class="bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                    class="btn btn-info h-8 px-2 text-xs">
                     저장
                   </button>
                   <button @click="cancelEditCompany"
-                    class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
+                    class="btn btn-secondary h-8 px-2 text-xs">
                     취소
                   </button>
                 </div>
@@ -173,11 +173,11 @@ onMounted(loadCompanies);
               <td class="p-3">
                 <div class="flex gap-2">
                   <button @click="startEditCompany(c)"
-                    class="bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                    class="btn btn-info h-8 px-2 text-xs">
                     수정
                   </button>
                   <button @click="deleteCompany(c.id)"
-                    class="bg-red-500 text-white px-2 py-1 rounded text-xs">
+                    class="btn btn-danger h-8 px-2 text-xs">
                     삭제
                   </button>
                 </div>
