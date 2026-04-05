@@ -266,7 +266,7 @@ const buildInventoryReportHtml = (modeLabel) => {
       <script>
         window.onload = () => { window.focus(); window.print(); };
         window.onafterprint = () => { window.close(); };
-      </script>
+      <\\/script>
     </body>
   </html>`;
 };
