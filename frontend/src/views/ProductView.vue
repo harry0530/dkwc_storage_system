@@ -25,6 +25,7 @@ const bomInput = ref({});
 const searchInput = ref({});
 const showDropdown = ref({});
 const productSearch = ref("");
+const showAllProducts = ref(false);
 
 // alias 수정
 const editingAliasId = ref("");
@@ -161,9 +162,11 @@ const selectPart = (parent_code, code) => {
 
 const filteredProducts = computed(() => {
   const keyword = (productSearch.value || "").trim().toLowerCase();
-  const finished = products.value.filter((p) => p.type === "FINISHED");
-  if (!keyword) return finished;
-  return finished.filter((p) =>
+  const base = showAllProducts.value
+    ? products.value
+    : products.value.filter((p) => p.type === "FINISHED");
+  if (!keyword) return base;
+  return base.filter((p) =>
     (p.code || "").toLowerCase().includes(keyword) ||
     (p.name || "").toLowerCase().includes(keyword)
   );
@@ -281,12 +284,16 @@ onMounted(loadData);
 
     <!-- 제품 목록 -->
     <div class="panel overflow-visible">
-      <div class="p-3 border-b bg-slate-50">
+      <div class="p-3 border-b bg-slate-50 flex flex-wrap items-center gap-3">
         <input
           v-model="productSearch"
           placeholder="품번/제품명 검색"
           class="input w-56"
         />
+        <label class="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" v-model="showAllProducts" />
+          부품까지 보기
+        </label>
       </div>
 
       <table class="w-full text-left">
