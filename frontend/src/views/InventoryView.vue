@@ -89,15 +89,6 @@ const addStock = async () => {
     return;
   }
 
-  const added = products.value.find(
-    (p) => (p.code || "").toLowerCase() === productCode.toLowerCase()
-  );
-  if (added?.type) {
-    typeFilter.value = added.type;
-  } else {
-    typeFilter.value = "ALL";
-  }
-
   code.value = "";
   nameInput.value = "";
   quantity.value = "";
@@ -218,10 +209,7 @@ const lowStockItems = computed(() =>
 
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
-  const base =
-    typeFilter.value === "ALL"
-      ? inventory.value
-      : inventory.value.filter((item) => item.type === typeFilter.value);
+  const base = inventory.value.filter((item) => item.type === "PART");
   if (!keyword) return base;
   return base.filter((item) =>
     (item.code || "").toLowerCase().includes(keyword)
@@ -377,15 +365,9 @@ watch([partFirst, partTwo, partMid, partDigit, partLast], () => {
         입고
       </button>
 
-      <select v-model="typeFilter" class="input w-28 ml-auto">
-        <option value="PART">부품</option>
-        <option value="FINISHED">완제품</option>
-        <option value="ALL">전체</option>
-      </select>
-
       <input v-model="searchCode"
         placeholder="품번 검색"
-        class="input w-48" />
+        class="input w-48 ml-auto" />
 
     </div>
 
