@@ -27,6 +27,7 @@ const showDropdown = ref({});
 const productSearch = ref("");
 const productSearchInput = ref("");
 const listMode = ref("FINISHED");
+const showNameDropdown = ref(false);
 
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
@@ -194,8 +195,11 @@ const filteredProducts = computed(() => {
     listMode.value === "ALL"
       ? products.value
       : products.value.filter((p) => p.type === "FINISHED");
-  if (!keyword) return [];
-  return base.filter((p) => {
+  const sorted = [...base].sort((a, b) =>
+    (a.code || "").localeCompare(b.code || "")
+  );
+  if (!keyword) return listMode.value === "ALL" ? sorted : [];
+  return sorted.filter((p) => {
     const codeMatch = (p.code || "").toLowerCase().includes(keyword);
     const nameMatch = (p.name || "").toLowerCase().includes(keyword);
     const aliasMatch = aliases.value.some(
@@ -260,6 +264,23 @@ watch([finishedFirst, finishedTwo, finishedMid, finishedLast], () => {
 
 const applySearch = () => {
   productSearch.value = productSearchInput.value;
+};
+
+const filteredNameSuggestions = computed(() => {
+  const keyword = (productSearchInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value
+    .filter((p) =>
+      listMode.value === "ALL" ? true : p.type === "FINISHED"
+    )
+    .filter((p) => (p.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectNameSuggestion = (name) => {
+  productSearchInput.value = name;
+  productSearch.value = name;
+  showNameDropdown.value = false;
 };
 </script>
 
@@ -348,11 +369,28 @@ const applySearch = () => {
           </button>
         </div>
 
-        <input
-          v-model="productSearchInput"
-          placeholder="품번/제품명 검색"
-          class="input w-56"
-        />
+        <div class="relative w-56">
+          <input
+            v-model="productSearchInput"
+            @focus="showNameDropdown = true"
+            @blur="setTimeout(() => showNameDropdown = false, 200)"
+            placeholder="품번/제품명 검색"
+            class="input w-full"
+          />
+          <div
+            v-if="showNameDropdown && filteredNameSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+          >
+            <div
+              v-for="item in filteredNameSuggestions"
+              :key="`name-${item.code}`"
+              @click="selectNameSuggestion(item.name)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ item.name }} ({{ item.code }})
+            </div>
+          </div>
+        </div>
         <button @click="applySearch" class="btn btn-secondary h-9">
           검색
         </button>
