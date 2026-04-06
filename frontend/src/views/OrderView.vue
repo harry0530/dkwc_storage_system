@@ -136,12 +136,27 @@ const selectCompany = (name) => {
 // =====================
 const showCodeDropdown = ref(false);
 
-const filteredCodes = computed(() =>
-  aliases.value.filter(a =>
-    a.company === selectedCompany.value &&
-    a.alias_code.includes(codeInput.value)
-  )
-);
+const filteredCodes = computed(() => {
+  const keyword = (codeInput.value || "").trim().toLowerCase();
+  const aliasMatches = aliases.value
+    .filter(a => a.company === selectedCompany.value)
+    .filter(a => !keyword || a.alias_code.toLowerCase().includes(keyword))
+    .map(a => ({
+      key: `alias-${a.id}`,
+      code: a.alias_code,
+      label: `${a.alias_code} (타사 품번)`
+    }));
+
+  const productMatches = products.value
+    .filter(p => !keyword || p.code.toLowerCase().includes(keyword))
+    .map(p => ({
+      key: `prod-${p.code}`,
+      code: p.code,
+      label: `${p.code} (우리 품번)`
+    }));
+
+  return [...aliasMatches, ...productMatches];
+});
 
 const selectCode = (code) => {
   selectedCode.value = code;
@@ -265,10 +280,10 @@ const deleteOrder = async (id) => {
         <div v-if="showCodeDropdown"
           class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="a in filteredCodes"
-            :key="a.id"
-            @click="selectCode(a.alias_code)"
+            :key="a.key"
+            @click="selectCode(a.code)"
             class="p-2 hover:bg-slate-100 cursor-pointer">
-            {{ a.alias_code }}
+            {{ a.label }}
           </div>
         </div>
       </div>
