@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import api from "../api";
 
 const products = ref([]);
@@ -25,6 +25,12 @@ const bomInput = ref({});
 const searchInput = ref({});
 const showDropdown = ref({});
 const productSearch = ref("");
+
+// 완제품 품번 구성 (1 / 01 / M - S)
+const finishedFirst = ref("1");
+const finishedTwo = ref("01");
+const finishedMid = ref("M");
+const finishedLast = ref("S");
 
 // alias 수정
 const editingAliasId = ref("");
@@ -210,6 +216,14 @@ const deleteAlias = async (aliasId) => {
 };
 
 onMounted(loadData);
+
+const finishedCode = computed(
+  () => `${finishedFirst.value}${finishedTwo.value}${finishedMid.value}-${finishedLast.value}`
+);
+
+watch([finishedFirst, finishedTwo, finishedMid, finishedLast], () => {
+  productSearch.value = finishedCode.value;
+});
 </script>
 
 <template>
@@ -287,6 +301,28 @@ onMounted(loadData);
           placeholder="품번/제품명 검색"
           class="input w-56"
         />
+        <div class="flex items-center gap-1">
+          <select v-model="finishedFirst" class="input w-16">
+            <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
+              {{ n }}
+            </option>
+          </select>
+          <select v-model="finishedTwo" class="input w-20">
+            <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
+              {{ String(n).padStart(2, '0') }}
+            </option>
+          </select>
+          <select v-model="finishedMid" class="input w-16">
+            <option value="M">M</option>
+            <option value="S">S</option>
+          </select>
+          <select v-model="finishedLast" class="input w-16">
+            <option value="S">S</option>
+            <option value="E">E</option>
+            <option value="T">T</option>
+            <option value="K">K</option>
+          </select>
+        </div>
       </div>
 
       <table class="w-full text-left">
