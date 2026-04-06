@@ -8,6 +8,8 @@ import autoTable from "jspdf-autotable";
 const inventory = ref([]);
 const products = ref([]);
 const searchCode = ref("");
+const searchNameInput = ref("");
+const showNameDropdown = ref(false);
 const typeFilter = ref("PART");
 
 const code = ref("");
@@ -28,6 +30,13 @@ const partTwo = ref("01");
 const partMid = ref("M");
 const partDigit = ref("1");
 const partLast = ref("S");
+
+// 검색용 부품 품번 구성
+const searchPartFirst = ref("1");
+const searchPartTwo = ref("01");
+const searchPartMid = ref("M");
+const searchPartDigit = ref("1");
+const searchPartLast = ref("S");
 
 // 로그
 const selectedProduct = ref("");
@@ -209,10 +218,12 @@ const lowStockItems = computed(() =>
 
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
+  const nameKeyword = (searchNameInput.value || "").trim().toLowerCase();
   const base = inventory.value.filter((item) => item.type === "PART");
-  if (!keyword) return [];
+  if (!keyword && !nameKeyword) return [];
   return base.filter((item) =>
-    (item.code || "").toLowerCase().includes(keyword)
+    (keyword && (item.code || "").toLowerCase().includes(keyword)) ||
+    (nameKeyword && (item.name || "").toLowerCase().includes(nameKeyword))
   );
 });
 
@@ -293,6 +304,32 @@ const partCode = computed(
 watch([partFirst, partTwo, partMid, partDigit, partLast], () => {
   code.value = partCode.value;
 });
+
+const searchPartCode = computed(
+  () =>
+    `${searchPartFirst.value}${searchPartTwo.value}${searchPartMid.value}${searchPartDigit.value}-${searchPartLast.value}`
+);
+
+watch(
+  [searchPartFirst, searchPartTwo, searchPartMid, searchPartDigit, searchPartLast],
+  () => {
+    searchCode.value = searchPartCode.value;
+  }
+);
+
+const filteredNameSuggestions = computed(() => {
+  const keyword = (searchNameInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  const base = inventory.value.filter((item) => item.type === "PART");
+  return base.filter((item) =>
+    (item.name || "").toLowerCase().includes(keyword)
+  ).slice(0, 10);
+});
+
+const selectNameSuggestion = (name) => {
+  searchNameInput.value = name;
+  showNameDropdown.value = false;
+};
 </script>
 
 <template>
@@ -365,9 +402,60 @@ watch([partFirst, partTwo, partMid, partDigit, partLast], () => {
         입고
       </button>
 
+      <div class="flex items-center gap-1 ml-auto">
+        <select v-model="searchPartFirst" class="input w-16">
+          <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
+            {{ n }}
+          </option>
+        </select>
+        <select v-model="searchPartTwo" class="input w-20">
+          <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
+            {{ String(n).padStart(2, '0') }}
+          </option>
+        </select>
+        <select v-model="searchPartMid" class="input w-16">
+          <option value="M">M</option>
+          <option value="S">S</option>
+        </select>
+        <select v-model="searchPartDigit" class="input w-16">
+          <option v-for="n in 10" :key="n" :value="String(n - 1)">
+            {{ n - 1 }}
+          </option>
+        </select>
+        <select v-model="searchPartLast" class="input w-16">
+          <option value="S">S</option>
+          <option value="E">E</option>
+          <option value="T">T</option>
+          <option value="K">K</option>
+        </select>
+      </div>
+
       <input v-model="searchCode"
         placeholder="품번 검색"
-        class="input w-48 ml-auto" />
+        class="input w-48" />
+
+      <div class="relative w-56">
+        <input
+          v-model="searchNameInput"
+          @focus="showNameDropdown = true"
+          @blur="setTimeout(() => showNameDropdown = false, 200)"
+          placeholder="제품명 검색"
+          class="input w-full"
+        />
+        <div
+          v-if="showNameDropdown && filteredNameSuggestions.length"
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+        >
+          <div
+            v-for="item in filteredNameSuggestions"
+            :key="`name-${item.code}`"
+            @click="selectNameSuggestion(item.name)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.name }} ({{ item.code }})
+          </div>
+        </div>
+      </div>
 
     </div>
 
