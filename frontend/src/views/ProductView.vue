@@ -29,6 +29,10 @@ const productSearchInput = ref("");
 const listMode = ref("FINISHED");
 const showNameDropdown = ref(false);
 
+// 등록 입력 추천
+const showCreateCodeDropdown = ref(false);
+const showCreateNameDropdown = ref(false);
+
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
 const finishedTwo = ref("01");
@@ -282,6 +286,32 @@ const selectNameSuggestion = (name) => {
   productSearch.value = name;
   showNameDropdown.value = false;
 };
+
+const filteredCreateCodeSuggestions = computed(() => {
+  const keyword = (code.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value
+    .filter((p) => (p.code || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const filteredCreateNameSuggestions = computed(() => {
+  const keyword = (name.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value
+    .filter((p) => (p.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectCreateCodeSuggestion = (codeValue) => {
+  code.value = codeValue;
+  showCreateCodeDropdown.value = false;
+};
+
+const selectCreateNameSuggestion = (nameValue) => {
+  name.value = nameValue;
+  showCreateNameDropdown.value = false;
+};
 </script>
 
 <template>
@@ -292,8 +322,50 @@ const selectNameSuggestion = (name) => {
     <!-- 제품 등록 -->
     <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
 
-      <input v-model="code" placeholder="품번" class="input w-32" />
-      <input v-model="name" placeholder="제품명" class="input w-32" />
+      <div class="relative w-32">
+        <input
+          v-model="code"
+          @focus="showCreateCodeDropdown = true"
+          @blur="setTimeout(() => showCreateCodeDropdown = false, 200)"
+          placeholder="품번"
+          class="input w-full"
+        />
+        <div
+          v-if="showCreateCodeDropdown && filteredCreateCodeSuggestions.length"
+          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+        >
+          <div
+            v-for="item in filteredCreateCodeSuggestions"
+            :key="`create-code-${item.code}`"
+            @click="selectCreateCodeSuggestion(item.code)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.code }} ({{ item.name }})
+          </div>
+        </div>
+      </div>
+      <div class="relative w-32">
+        <input
+          v-model="name"
+          @focus="showCreateNameDropdown = true"
+          @blur="setTimeout(() => showCreateNameDropdown = false, 200)"
+          placeholder="제품명"
+          class="input w-full"
+        />
+        <div
+          v-if="showCreateNameDropdown && filteredCreateNameSuggestions.length"
+          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+        >
+          <div
+            v-for="item in filteredCreateNameSuggestions"
+            :key="`create-name-${item.code}`"
+            @click="selectCreateNameSuggestion(item.name)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.name }} ({{ item.code }})
+          </div>
+        </div>
+      </div>
 
       <select v-model="type" class="input">
         <option value="PART">부품</option>

@@ -16,6 +16,7 @@ const code = ref("");
 const nameInput = ref("");
 const quantity = ref("");
 const showAddNameDropdown = ref(false);
+const showAddCodeDropdown = ref(false);
 
 // 수정
 const editingCode = ref("");
@@ -345,6 +346,20 @@ const selectAddNameSuggestion = (name) => {
   nameInput.value = name;
   showAddNameDropdown.value = false;
 };
+
+const filteredAddCodeSuggestions = computed(() => {
+  const keyword = (code.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value
+    .filter((p) => p.type === "PART")
+    .filter((p) => (p.code || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectAddCodeSuggestion = (codeValue) => {
+  code.value = codeValue;
+  showAddCodeDropdown.value = false;
+};
 </script>
 
 <template>
@@ -371,9 +386,28 @@ const selectAddNameSuggestion = (name) => {
     <!-- 입력 -->
     <div class="panel p-3 mb-6 flex gap-2 items-center flex-wrap">
 
-      <input v-model="code"
-        placeholder="품번 직접 입력"
-        class="input w-40" />
+      <div class="relative w-40">
+        <input
+          v-model="code"
+          @focus="showAddCodeDropdown = true"
+          @blur="setTimeout(() => showAddCodeDropdown = false, 200)"
+          placeholder="품번 직접 입력"
+          class="input w-full"
+        />
+        <div
+          v-if="showAddCodeDropdown && filteredAddCodeSuggestions.length"
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+        >
+          <div
+            v-for="item in filteredAddCodeSuggestions"
+            :key="`add-code-${item.code}`"
+            @click="selectAddCodeSuggestion(item.code)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.code }} ({{ item.name }})
+          </div>
+        </div>
+      </div>
 
       <div class="relative w-48">
         <input
