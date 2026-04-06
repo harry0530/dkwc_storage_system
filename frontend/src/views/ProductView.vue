@@ -65,13 +65,34 @@ const createProduct = async () => {
     await api.post("/products/", {
       code: codeValue,
       name: nameValue,
-    type: type.value,
+      type: type.value,
       location: (location.value || "").trim(),
-    min_stock: Number(min_stock.value)
+      min_stock: Number(min_stock.value)
     });
   } catch (err) {
     const message =
       err?.response?.data?.detail || "등록 실패: 품번 중복 여부를 확인하세요.";
+    if (message.includes("이미 존재")) {
+      const existing = products.value.find(
+        (p) => (p.code || "").trim() === codeValue
+      );
+      if (existing && existing.type !== type.value) {
+        const ok = window.confirm(
+          `이미 ${existing.type === "PART" ? "부품" : "완제품"}으로 등록되어 있습니다. ` +
+          `이 품번을 ${type.value === "FINISHED" ? "완제품" : "부품"}으로 변경할까요?`
+        );
+        if (ok) {
+          await api.put(`/products/${codeValue}`, {
+            name: nameValue || existing.name,
+            type: type.value,
+            location: (location.value || existing.location || "").trim(),
+            min_stock: Number(min_stock.value || existing.min_stock || 0)
+          });
+          loadData();
+          return;
+        }
+      }
+    }
     alert(message);
     return;
   }
