@@ -15,6 +15,7 @@ const typeFilter = ref("PART");
 const code = ref("");
 const nameInput = ref("");
 const quantity = ref("");
+const showAddNameDropdown = ref(false);
 
 // 수정
 const editingCode = ref("");
@@ -330,6 +331,20 @@ const selectNameSuggestion = (name) => {
   searchNameInput.value = name;
   showNameDropdown.value = false;
 };
+
+const filteredAddNameSuggestions = computed(() => {
+  const keyword = (nameInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value
+    .filter((p) => p.type === "PART")
+    .filter((p) => (p.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectAddNameSuggestion = (name) => {
+  nameInput.value = name;
+  showAddNameDropdown.value = false;
+};
 </script>
 
 <template>
@@ -360,9 +375,28 @@ const selectNameSuggestion = (name) => {
         placeholder="품번 직접 입력"
         class="input w-40" />
 
-      <input v-model="nameInput"
-        placeholder="제품명"
-        class="input w-48" />
+      <div class="relative w-48">
+        <input
+          v-model="nameInput"
+          @focus="showAddNameDropdown = true"
+          @blur="setTimeout(() => showAddNameDropdown = false, 200)"
+          placeholder="제품명"
+          class="input w-full"
+        />
+        <div
+          v-if="showAddNameDropdown && filteredAddNameSuggestions.length"
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+        >
+          <div
+            v-for="item in filteredAddNameSuggestions"
+            :key="`add-name-${item.code}`"
+            @click="selectAddNameSuggestion(item.name)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.name }} ({{ item.code }})
+          </div>
+        </div>
+      </div>
 
       <div class="flex items-center gap-1">
         <select v-model="partFirst" class="input w-16">
