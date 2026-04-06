@@ -47,7 +47,20 @@ def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="재고 없음")
 
     if "quantity" in data:
-        inv.quantity = data["quantity"]
+        new_qty = data["quantity"]
+        prev_qty = inv.quantity
+        inv.quantity = new_qty
+
+        diff = new_qty - prev_qty
+        if diff != 0:
+            reason = data.get("reason") or "수량 변경"
+            tx_type = "IN" if diff > 0 else "OUT"
+            db.add(models.Transaction(
+                product_code=product_code,
+                quantity=abs(diff),
+                type=tx_type,
+                reason=reason
+            ))
 
     db.commit()
 

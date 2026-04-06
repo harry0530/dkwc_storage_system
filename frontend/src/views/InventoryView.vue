@@ -6,9 +6,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const inventory = ref([]);
+const products = ref([]);
 const searchCode = ref("");
 
 const code = ref("");
+const nameInput = ref("");
 const quantity = ref("");
 
 // 수정
@@ -17,6 +19,7 @@ const editName = ref("");
 const editLocation = ref("");
 const editMinStock = ref("");
 const editQuantity = ref("");
+const editReason = ref("");
 
 // 로그
 const selectedProduct = ref("");
@@ -30,18 +33,49 @@ const loadInventory = async () => {
   inventory.value = res.data;
 };
 
+const loadProducts = async () => {
+  const res = await api.get("/products/");
+  products.value = res.data;
+};
+
 // =====================
 // 입고
 // =====================
 const addStock = async () => {
-  if (!code.value || !quantity.value) return;
+  if (!quantity.value) return;
+
+  let productCode = code.value.trim();
+  const nameValue = nameInput.value.trim();
+
+  if (!productCode && nameValue) {
+    const matches = products.value.filter(
+      (p) => (p.name || "").trim().toLowerCase() === nameValue.toLowerCase()
+    );
+
+    if (matches.length === 0) {
+      alert("제품명을 찾을 수 없습니다.");
+      return;
+    }
+    if (matches.length > 1) {
+      alert("동일한 제품명이 여러 개입니다. 품번으로 입력해주세요.");
+      return;
+    }
+
+    productCode = matches[0].code;
+  }
+
+  if (!productCode) {
+    alert("품번 또는 제품명을 입력하세요.");
+    return;
+  }
 
   await api.post("/inventory/", {
-    product_code: code.value,
+    product_code: productCode,
     quantity: Number(quantity.value)
   });
 
   code.value = "";
+  nameInput.value = "";
   quantity.value = "";
 
   loadInventory();
@@ -56,6 +90,7 @@ const startEdit = (item) => {
   editLocation.value = item.location || "";
   editMinStock.value = String(item.min_stock ?? "");
   editQuantity.value = String(item.quantity ?? "");
+  editReason.value = "";
 };
 
 const cancelEdit = () => {
@@ -64,6 +99,7 @@ const cancelEdit = () => {
   editLocation.value = "";
   editMinStock.value = "";
   editQuantity.value = "";
+  editReason.value = "";
 };
 
 const saveEdit = async () => {
@@ -76,7 +112,8 @@ const saveEdit = async () => {
   });
 
   await api.put(`/inventory/${editingCode.value}`, {
-    quantity: Number(editQuantity.value || 0)
+    quantity: Number(editQuantity.value || 0),
+    reason: editReason.value
   });
 
   cancelEdit();
@@ -227,7 +264,10 @@ const exportInventoryExcel = () => {
   XLSX.writeFile(wb, filename);
 };
 
-onMounted(loadInventory);
+onMounted(() => {
+  loadInventory();
+  loadProducts();
+});
 </script>
 
 <template>
@@ -258,6 +298,10 @@ onMounted(loadInventory);
         placeholder="품번"
         class="input w-40" />
 
+      <input v-model="nameInput"
+        placeholder="제품명"
+        class="input w-48" />
+
       <input v-model="quantity"
         type="number"
         placeholder="수량"
@@ -286,6 +330,9 @@ onMounted(loadInventory);
           class="input w-24" />
         <input v-model="editQuantity" type="number" placeholder="재고"
           class="input w-24" />
+
+        <input v-model="editReason" placeholder="수량 변경 사유"
+          class="input w-64" />
 
         <button @click="saveEdit" class="btn btn-primary">
           저장
