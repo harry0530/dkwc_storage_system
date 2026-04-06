@@ -50,15 +50,24 @@ const loadData = async () => {
 // 제품 등록
 // =====================
 const createProduct = async () => {
-  if (!code.value) return alert("품번 입력");
+  const codeValue = (code.value || "").trim();
+  const nameValue = (name.value || "").trim();
+  if (!codeValue) return alert("품번 입력");
 
-  await api.post("/products/", {
-    code: code.value,
-    name: name.value,
+  try {
+    await api.post("/products/", {
+      code: codeValue,
+      name: nameValue,
     type: type.value,
-    location: location.value,
+      location: (location.value || "").trim(),
     min_stock: Number(min_stock.value)
-  });
+    });
+  } catch (err) {
+    const message =
+      err?.response?.data?.detail || "등록 실패: 품번 중복 여부를 확인하세요.";
+    alert(message);
+    return;
+  }
 
   code.value = "";
   name.value = "";

@@ -10,12 +10,20 @@ router = APIRouter(prefix="/products", tags=["Products"])
 # 🔥 핵심 수정 부분
 @router.post("/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
-    
+    code = product.code.strip()
+    name = product.name.strip() if product.name else ""
+
+    existing = db.query(models.Product).filter(
+        models.Product.code == code
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="이미 존재하는 품번")
+
     db_product = models.Product(
-        code=product.code,
-        name=product.name,
+        code=code,
+        name=name,
         type=product.type,
-        location=product.location,
+        location=(product.location or "").strip(),
         min_stock=product.min_stock
     )
 
