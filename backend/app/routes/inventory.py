@@ -22,6 +22,7 @@ def get_inventory(db: Session = Depends(get_db)):
             "code": inv.product_code,
             "product_code": inv.product_code,
             "name": product.name if product else "",
+            "type": product.type if product else "",
             "location": product.location if product else "",
             "quantity": inv.quantity,
             "min_stock": product.min_stock if product else 0

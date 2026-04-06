@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import api from "../api";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -8,6 +8,7 @@ import autoTable from "jspdf-autotable";
 const inventory = ref([]);
 const products = ref([]);
 const searchCode = ref("");
+const typeFilter = ref("PART");
 
 const code = ref("");
 const nameInput = ref("");
@@ -20,6 +21,13 @@ const editLocation = ref("");
 const editMinStock = ref("");
 const editQuantity = ref("");
 const editReason = ref("");
+
+// 부품 품번 구성
+const partFirst = ref("1");
+const partTwo = ref("01");
+const partMid = ref("M");
+const partDigit = ref("1");
+const partLast = ref("S");
 
 // 로그
 const selectedProduct = ref("");
@@ -69,16 +77,33 @@ const addStock = async () => {
     return;
   }
 
-  await api.post("/inventory/", {
-    product_code: productCode,
-    quantity: Number(quantity.value)
-  });
+  try {
+    await api.post("/inventory/", {
+      product_code: productCode,
+      quantity: Number(quantity.value)
+    });
+  } catch (err) {
+    const message =
+      err?.response?.data?.detail || "입고 실패: 로그인 상태를 확인하세요.";
+    alert(message);
+    return;
+  }
+
+  const added = products.value.find(
+    (p) => (p.code || "").toLowerCase() === productCode.toLowerCase()
+  );
+  if (added?.type) {
+    typeFilter.value = added.type;
+  } else {
+    typeFilter.value = "ALL";
+  }
 
   code.value = "";
   nameInput.value = "";
   quantity.value = "";
 
-  loadInventory();
+  await loadInventory();
+  alert("입고 완료");
 };
 
 // =====================
@@ -193,8 +218,12 @@ const lowStockItems = computed(() =>
 
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
-  if (!keyword) return inventory.value;
-  return inventory.value.filter((item) =>
+  const base =
+    typeFilter.value === "ALL"
+      ? inventory.value
+      : inventory.value.filter((item) => item.type === typeFilter.value);
+  if (!keyword) return base;
+  return base.filter((item) =>
     (item.code || "").toLowerCase().includes(keyword)
   );
 });
@@ -268,6 +297,14 @@ onMounted(() => {
   loadInventory();
   loadProducts();
 });
+
+const partCode = computed(
+  () => `${partFirst.value}${partTwo.value}${partMid.value}${partDigit.value}-${partLast.value}`
+);
+
+watch([partFirst, partTwo, partMid, partDigit, partLast], () => {
+  code.value = partCode.value;
+});
 </script>
 
 <template>
@@ -295,12 +332,40 @@ onMounted(() => {
     <div class="panel p-3 mb-6 flex gap-2 items-center flex-wrap">
 
       <input v-model="code"
-        placeholder="품번"
+        placeholder="품번 직접 입력"
         class="input w-40" />
 
       <input v-model="nameInput"
         placeholder="제품명"
         class="input w-48" />
+
+      <div class="flex items-center gap-1">
+        <select v-model="partFirst" class="input w-16">
+          <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
+            {{ n }}
+          </option>
+        </select>
+        <select v-model="partTwo" class="input w-20">
+          <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
+            {{ String(n).padStart(2, '0') }}
+          </option>
+        </select>
+        <select v-model="partMid" class="input w-16">
+          <option value="M">M</option>
+          <option value="S">S</option>
+        </select>
+        <select v-model="partDigit" class="input w-16">
+          <option v-for="n in 10" :key="n" :value="String(n - 1)">
+            {{ n - 1 }}
+          </option>
+        </select>
+        <select v-model="partLast" class="input w-16">
+          <option value="S">S</option>
+          <option value="E">E</option>
+          <option value="T">T</option>
+          <option value="K">K</option>
+        </select>
+      </div>
 
       <input v-model="quantity"
         type="number"
@@ -312,9 +377,15 @@ onMounted(() => {
         입고
       </button>
 
+      <select v-model="typeFilter" class="input w-28 ml-auto">
+        <option value="PART">부품</option>
+        <option value="FINISHED">완제품</option>
+        <option value="ALL">전체</option>
+      </select>
+
       <input v-model="searchCode"
         placeholder="품번 검색"
-        class="input w-48 ml-auto" />
+        class="input w-48" />
 
     </div>
 
