@@ -169,10 +169,16 @@ const filteredProducts = computed(() => {
   const keyword = (productSearch.value || "").trim().toLowerCase();
   const base = products.value.filter((p) => p.type === "FINISHED");
   if (!keyword) return base;
-  return base.filter((p) =>
-    (p.code || "").toLowerCase().includes(keyword) ||
-    (p.name || "").toLowerCase().includes(keyword)
-  );
+  return base.filter((p) => {
+    const codeMatch = (p.code || "").toLowerCase().includes(keyword);
+    const nameMatch = (p.name || "").toLowerCase().includes(keyword);
+    const aliasMatch = aliases.value.some(
+      (a) =>
+        a.product_code === p.code &&
+        (a.alias_code || "").toLowerCase().includes(keyword)
+    );
+    return codeMatch || nameMatch || aliasMatch;
+  });
 });
 
 const filteredCompanies = computed(() => {
