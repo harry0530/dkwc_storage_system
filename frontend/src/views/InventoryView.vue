@@ -210,7 +210,7 @@ const lowStockItems = computed(() =>
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
   const base = inventory.value.filter((item) => item.type === "PART");
-  if (!keyword) return base;
+  if (!keyword) return [];
   return base.filter((item) =>
     (item.code || "").toLowerCase().includes(keyword)
   );

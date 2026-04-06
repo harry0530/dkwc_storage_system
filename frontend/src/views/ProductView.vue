@@ -194,7 +194,7 @@ const filteredProducts = computed(() => {
     listMode.value === "ALL"
       ? products.value
       : products.value.filter((p) => p.type === "FINISHED");
-  if (!keyword) return base;
+  if (!keyword) return [];
   return base.filter((p) => {
     const codeMatch = (p.code || "").toLowerCase().includes(keyword);
     const nameMatch = (p.name || "").toLowerCase().includes(keyword);
