@@ -23,6 +23,15 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_product)
 
+    # 부품이면 재고 테이블에 기본값(0)으로 생성
+    if db_product.type == "PART":
+        existing_inv = db.query(models.Inventory).filter(
+            models.Inventory.product_code == db_product.code
+        ).first()
+        if not existing_inv:
+            db.add(models.Inventory(product_code=db_product.code, quantity=0))
+            db.commit()
+
     return db_product
 
 
