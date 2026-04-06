@@ -25,6 +25,7 @@ const bomInput = ref({});
 const searchInput = ref({});
 const showDropdown = ref({});
 const productSearch = ref("");
+const productSearchInput = ref("");
 
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
@@ -228,8 +229,13 @@ const finishedCode = computed(
 );
 
 watch([finishedFirst, finishedTwo, finishedMid, finishedLast], () => {
+  productSearchInput.value = finishedCode.value;
   productSearch.value = finishedCode.value;
 });
+
+const applySearch = () => {
+  productSearch.value = productSearchInput.value;
+};
 </script>
 
 <template>
@@ -303,10 +309,13 @@ watch([finishedFirst, finishedTwo, finishedMid, finishedLast], () => {
     <div class="panel overflow-visible">
       <div class="p-3 border-b bg-slate-50 flex flex-wrap items-center gap-3">
         <input
-          v-model="productSearch"
+          v-model="productSearchInput"
           placeholder="품번/제품명 검색"
           class="input w-56"
         />
+        <button @click="applySearch" class="btn btn-secondary h-9">
+          검색
+        </button>
         <div class="flex items-center gap-1">
           <select v-model="finishedFirst" class="input w-16">
             <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
