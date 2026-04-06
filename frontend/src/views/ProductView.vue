@@ -26,6 +26,7 @@ const searchInput = ref({});
 const showDropdown = ref({});
 const productSearch = ref("");
 const productSearchInput = ref("");
+const listMode = ref("FINISHED");
 
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
@@ -189,7 +190,10 @@ const selectPart = (parent_code, code) => {
 
 const filteredProducts = computed(() => {
   const keyword = (productSearch.value || "").trim().toLowerCase();
-  const base = products.value.filter((p) => p.type === "FINISHED");
+  const base =
+    listMode.value === "ALL"
+      ? products.value
+      : products.value.filter((p) => p.type === "FINISHED");
   if (!keyword) return base;
   return base.filter((p) => {
     const codeMatch = (p.code || "").toLowerCase().includes(keyword);
@@ -329,6 +333,21 @@ const applySearch = () => {
     <!-- 제품 목록 -->
     <div class="panel overflow-visible">
       <div class="p-3 border-b bg-slate-50 flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <button
+            @click="listMode = 'FINISHED'"
+            :class="listMode === 'FINISHED' ? 'btn btn-primary' : 'btn btn-secondary'"
+          >
+            완제품
+          </button>
+          <button
+            @click="listMode = 'ALL'"
+            :class="listMode === 'ALL' ? 'btn btn-primary' : 'btn btn-secondary'"
+          >
+            전체
+          </button>
+        </div>
+
         <input
           v-model="productSearchInput"
           placeholder="품번/제품명 검색"
