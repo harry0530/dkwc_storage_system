@@ -383,8 +383,10 @@ const selectAddCodeSuggestion = (codeValue) => {
       </div>
     </div>
 
-    <!-- 입력 -->
-    <div class="panel p-3 mb-6 flex gap-2 items-center flex-wrap">
+    <!-- 입고 -->
+    <div class="panel mb-4">
+      <div class="panel-header">입고</div>
+      <div class="p-3 flex gap-2 items-center flex-wrap">
 
       <div class="relative w-40">
         <input
@@ -470,7 +472,15 @@ const selectAddCodeSuggestion = (codeValue) => {
         입고
       </button>
 
-      <div class="flex items-center gap-1 ml-auto">
+      </div>
+    </div>
+
+    <!-- 검색 -->
+    <div class="panel mb-6">
+      <div class="panel-header">부품 검색</div>
+      <div class="p-3 flex gap-2 items-center flex-wrap">
+
+      <div class="flex items-center gap-1">
         <select v-model="searchPartFirst" class="input w-16">
           <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
             {{ n }}
@@ -525,6 +535,7 @@ const selectAddCodeSuggestion = (codeValue) => {
         </div>
       </div>
 
+      </div>
     </div>
 
     <!-- 수정 -->
