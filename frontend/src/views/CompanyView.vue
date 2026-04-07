@@ -184,8 +184,8 @@ onMounted(loadCompanies);
         </thead>
 
         <tbody>
-          <tr v-for="c in filteredCompanies" :key="c.id"
-            class="border-t hover:bg-gray-50">
+          <template v-for="c in filteredCompanies" :key="c.id">
+            <tr class="border-t hover:bg-gray-50">
 
             <template v-if="editingCompanyId === String(c.id)">
               <td class="p-3">
@@ -235,63 +235,64 @@ onMounted(loadCompanies);
               </td>
             </template>
 
-          </tr>
-          <tr v-if="expandedCompanyId === String(c.id)" class="border-t bg-slate-50/70">
-            <td colspan="5" class="p-3">
-              <div class="flex items-center gap-2 flex-wrap mb-3">
-                <input v-model="empDepartment" placeholder="부서"
-                  class="input w-32" />
-                <input v-model="empName" placeholder="이름"
-                  class="input w-32" />
-                <input v-model="empTitle" placeholder="직급"
-                  class="input w-32" />
-                <input v-model="empPhone" placeholder="전화번호"
-                  class="input w-40" />
-                <button @click="addEmployee(c.id)" class="btn btn-primary">
-                  직원 추가
-                </button>
-              </div>
+            </tr>
+            <tr v-if="expandedCompanyId === String(c.id)" class="border-t bg-slate-50/70">
+              <td colspan="5" class="p-3">
+                <div class="flex items-center gap-2 flex-wrap mb-3">
+                  <input v-model="empDepartment" placeholder="부서"
+                    class="input w-32" />
+                  <input v-model="empName" placeholder="이름"
+                    class="input w-32" />
+                  <input v-model="empTitle" placeholder="직급"
+                    class="input w-32" />
+                  <input v-model="empPhone" placeholder="전화번호"
+                    class="input w-40" />
+                  <button @click="addEmployee(c.id)" class="btn btn-primary">
+                    직원 추가
+                  </button>
+                </div>
 
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                  <thead class="table-head">
-                    <tr>
-                      <th class="p-2">부서</th>
-                      <th class="p-2">이름</th>
-                      <th class="p-2">직급</th>
-                      <th class="p-2">전화번호</th>
-                      <th class="p-2">관리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="emp in employeesByCompany[String(c.id)] || []"
-                      :key="emp.id"
-                      class="border-t"
-                    >
-                      <td class="p-2">{{ emp.department || "-" }}</td>
-                      <td class="p-2">{{ emp.name || "-" }}</td>
-                      <td class="p-2">{{ emp.title || "-" }}</td>
-                      <td class="p-2">{{ emp.phone || "-" }}</td>
-                      <td class="p-2">
-                        <button
-                          @click="deleteEmployee(emp.id, c.id)"
-                          class="btn btn-danger h-7 px-2 text-xs"
-                        >
-                          삭제
-                        </button>
-                      </td>
-                    </tr>
-                    <tr v-if="(employeesByCompany[String(c.id)] || []).length === 0">
-                      <td colspan="5" class="p-3 text-center text-gray-400">
-                        직원 정보가 없습니다.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </td>
-          </tr>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-sm">
+                    <thead class="table-head">
+                      <tr>
+                        <th class="p-2">부서</th>
+                        <th class="p-2">이름</th>
+                        <th class="p-2">직급</th>
+                        <th class="p-2">전화번호</th>
+                        <th class="p-2">관리</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="emp in employeesByCompany[String(c.id)] || []"
+                        :key="emp.id"
+                        class="border-t"
+                      >
+                        <td class="p-2">{{ emp.department || "-" }}</td>
+                        <td class="p-2">{{ emp.name || "-" }}</td>
+                        <td class="p-2">{{ emp.title || "-" }}</td>
+                        <td class="p-2">{{ emp.phone || "-" }}</td>
+                        <td class="p-2">
+                          <button
+                            @click="deleteEmployee(emp.id, c.id)"
+                            class="btn btn-danger h-7 px-2 text-xs"
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="(employeesByCompany[String(c.id)] || []).length === 0">
+                        <td colspan="5" class="p-3 text-center text-gray-400">
+                          직원 정보가 없습니다.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
 
       </table>
