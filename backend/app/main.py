@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
+from sqlalchemy import text
 import os
 
 from app.routes import product, bom, inventory, transaction, order
@@ -25,7 +26,13 @@ app.add_middleware(
 )
 
 if os.getenv("RESET_DB") == "1":
-    Base.metadata.drop_all(bind=engine)
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+    else:
+        Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 protected = [Depends(verify_firebase_token)]
