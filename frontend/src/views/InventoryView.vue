@@ -7,6 +7,7 @@ import autoTable from "jspdf-autotable";
 
 const inventory = ref([]);
 const products = ref([]);
+const companies = ref([]);
 const searchCode = ref("");
 const searchNameInput = ref("");
 const showNameDropdown = ref(false);
@@ -26,10 +27,14 @@ const uploadFile = ref(null);
 // 수정
 const editingCode = ref("");
 const editName = ref("");
+const editOldCode = ref("");
+const editMaterial = ref("");
+const editSpec = ref("");
 const editLocation = ref("");
 const editMinStock = ref("");
 const editQuantity = ref("");
 const editReason = ref("");
+const editSupplierCompanyId = ref("");
 
 // 부품 품번 구성
 const partFirst = ref("1");
@@ -64,6 +69,11 @@ const loadProducts = async () => {
     code: item.new_code || item.code || "",
     old_code: item.old_code || ""
   }));
+};
+
+const loadCompanies = async () => {
+  const res = await api.get("/companies/");
+  companies.value = res.data;
 };
 
 // =====================
@@ -138,20 +148,30 @@ const addStock = async () => {
 // 재고 수정/삭제
 // =====================
 const startEdit = (item) => {
-  editingCode.value = item.code;
+  editingCode.value = item.new_code || item.code || "";
   editName.value = item.name || "";
+  editOldCode.value = item.old_code || "";
+  editMaterial.value = item.material || "";
+  editSpec.value = item.spec || "";
   editLocation.value = item.location || "";
   editMinStock.value = String(item.min_stock ?? "");
   editQuantity.value = String(item.quantity ?? "");
+  editSupplierCompanyId.value = item.supplier_company_id
+    ? String(item.supplier_company_id)
+    : "";
   editReason.value = "";
 };
 
 const cancelEdit = () => {
   editingCode.value = "";
   editName.value = "";
+  editOldCode.value = "";
+  editMaterial.value = "";
+  editSpec.value = "";
   editLocation.value = "";
   editMinStock.value = "";
   editQuantity.value = "";
+  editSupplierCompanyId.value = "";
   editReason.value = "";
 };
 
@@ -159,9 +179,15 @@ const saveEdit = async () => {
   if (!editingCode.value) return;
 
   await api.put(`/products/${editingCode.value}`, {
+    old_code: editOldCode.value,
     name: editName.value,
+    material: editMaterial.value,
+    spec: editSpec.value,
     location: editLocation.value,
-    min_stock: Number(editMinStock.value || 0)
+    min_stock: Number(editMinStock.value || 0),
+    supplier_company_id: editSupplierCompanyId.value
+      ? Number(editSupplierCompanyId.value)
+      : null
   });
 
   await api.put(`/inventory/${editingCode.value}`, {
@@ -262,7 +288,7 @@ const filteredInventory = computed(() => {
 const inventoryReportRows = computed(() => {
   return inventory.value
     .map((inv) => ({
-      code: inv.code || inv.product_code || "",
+      code: inv.new_code || inv.code || inv.product_code || "",
       name: inv.name || "",
       quantity: Number(inv.quantity || 0)
     }))
@@ -324,6 +350,7 @@ const exportInventoryExcel = () => {
 onMounted(() => {
   loadInventory();
   loadProducts();
+  loadCompanies();
 });
 
 const partCode = computed(
@@ -358,6 +385,12 @@ const filteredNameSuggestions = computed(() => {
 const selectNameSuggestion = (name) => {
   searchNameInput.value = name;
   showNameDropdown.value = false;
+};
+
+const getCompanyName = (companyId) => {
+  if (!companyId) return "-";
+  const company = companies.value.find((c) => c.id === companyId);
+  return company?.name || "-";
 };
 
 const filteredAddNameSuggestions = computed(() => {
@@ -619,10 +652,22 @@ const uploadPartsExcel = async () => {
     <div v-if="editingCode" class="panel p-3 mb-6">
       <div class="font-semibold mb-2">재고 정보 수정: {{ editingCode }}</div>
       <div class="flex flex-wrap gap-2 items-center">
+        <input v-model="editOldCode" placeholder="구품번"
+          class="input w-32" />
         <input v-model="editName" placeholder="제품명"
           class="input w-40" />
+        <input v-model="editMaterial" placeholder="재질"
+          class="input w-28" />
+        <input v-model="editSpec" placeholder="규격"
+          class="input w-28" />
         <input v-model="editLocation" placeholder="위치"
           class="input w-32" />
+        <select v-model="editSupplierCompanyId" class="input w-40">
+          <option value="">발주처 선택</option>
+          <option v-for="c in companies" :key="c.id" :value="String(c.id)">
+            {{ c.name }}
+          </option>
+        </select>
         <input v-model="editMinStock" type="number" placeholder="최소재고"
           class="input w-24" />
         <input v-model="editQuantity" type="number" placeholder="재고"
@@ -649,9 +694,9 @@ const uploadPartsExcel = async () => {
       <div class="mt-2 text-sm">
         <div
           v-for="item in lowStockItems"
-          :key="`low-${item.code}`"
+          :key="`low-${item.new_code || item.code}`"
         >
-          - {{ item.name || "이름없음" }} ({{ item.code }}) :
+          - {{ item.name || "이름없음" }} ({{ item.new_code || item.code }}) :
           {{ item.min_stock - item.quantity }}개 부족
         </div>
       </div>
@@ -663,10 +708,15 @@ const uploadPartsExcel = async () => {
 
         <thead class="table-head">
           <tr>
-            <th class="p-3">제품</th>
-            <th class="p-3">위치</th>
+            <th class="p-3">신품번</th>
+            <th class="p-3">구품번</th>
+            <th class="p-3">품명</th>
+            <th class="p-3">재질</th>
+            <th class="p-3">규격</th>
             <th class="p-3">현재 재고</th>
             <th class="p-3">최소 재고</th>
+            <th class="p-3">보관위치</th>
+            <th class="p-3">발주처</th>
             <th class="p-3">관리</th>
           </tr>
         </thead>
@@ -674,18 +724,23 @@ const uploadPartsExcel = async () => {
         <tbody>
           <tr
             v-for="item in filteredInventory"
-            :key="item.code"
+            :key="item.new_code || item.code"
             class="border-t hover:bg-slate-50"
           >
 
             <!-- ⭐ 클릭은 여기(td)에 걸어야 함 -->
             <td class="p-3 cursor-pointer"
-                @click="loadProductLogs(item.code)">
-              <div class="font-semibold">{{ item.name }}</div>
-              <div class="text-xs text-gray-400">{{ item.code }}</div>
+                @click="loadProductLogs(item.new_code || item.code)">
+              <div class="font-semibold">{{ item.new_code || "-" }}</div>
             </td>
 
-            <td class="p-3">{{ item.location }}</td>
+            <td class="p-3">{{ item.old_code || "-" }}</td>
+
+            <td class="p-3">{{ item.name || "-" }}</td>
+
+            <td class="p-3">{{ item.material || "-" }}</td>
+
+            <td class="p-3">{{ item.spec || "-" }}</td>
 
             <td class="p-3 font-bold"
                 :class="item.quantity < item.min_stock ? 'text-red-500' : 'text-blue-600'">
@@ -694,13 +749,17 @@ const uploadPartsExcel = async () => {
 
             <td class="p-3">{{ item.min_stock }}</td>
 
+            <td class="p-3">{{ item.location || "-" }}</td>
+
+            <td class="p-3">{{ getCompanyName(item.supplier_company_id) }}</td>
+
             <td class="p-3">
               <div class="flex gap-2">
                 <button @click="startEdit(item)"
                   class="btn btn-info h-7 px-2 text-xs">
                   수정
                 </button>
-                <button @click="deleteInventoryItem(item.code)"
+                <button @click="deleteInventoryItem(item.new_code || item.code)"
                   class="btn btn-danger h-7 px-2 text-xs">
                   삭제
                 </button>
