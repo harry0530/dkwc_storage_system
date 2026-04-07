@@ -59,7 +59,16 @@ const productLogs = ref([]);
 // =====================
 const loadInventory = async () => {
   const res = await api.get("/inventory/");
-  inventory.value = res.data;
+  inventory.value = res.data.map((item) => ({
+    ...item,
+    new_code: item.new_code || item.code || "",
+    old_code: item.old_code || "",
+    name: item.name || "",
+    material: item.material || "",
+    spec: item.spec || "",
+    location: item.location || "",
+    type: (item.type || "PART").toString().toUpperCase()
+  }));
 };
 
 const loadProducts = async () => {
@@ -273,13 +282,21 @@ const lowStockItems = computed(() =>
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
   const nameKeyword = (searchNameInput.value || "").trim().toLowerCase();
-  const base = inventory.value.filter((item) => item.type === "PART");
-  if (!keyword && !nameKeyword) return [];
-  return base.filter((item) =>
-    (keyword && ((item.new_code || item.code || "").toLowerCase().includes(keyword) ||
-      (item.old_code || "").toLowerCase().includes(keyword))) ||
-    (nameKeyword && (item.name || "").toLowerCase().includes(nameKeyword))
+  const base = inventory.value.filter(
+    (item) => (item.type || "PART").toString().toUpperCase() === "PART"
   );
+  if (!keyword && !nameKeyword) return [];
+  return base.filter((item) => {
+    const codeValue = (item.new_code || item.code || "")
+      .toString()
+      .toLowerCase();
+    const oldValue = (item.old_code || "").toString().toLowerCase();
+    const nameValue = (item.name || "").toString().toLowerCase();
+    return (
+      (keyword && (codeValue.includes(keyword) || oldValue.includes(keyword))) ||
+      (nameKeyword && nameValue.includes(nameKeyword))
+    );
+  });
 });
 
 // =====================
@@ -376,10 +393,12 @@ watch(
 const filteredNameSuggestions = computed(() => {
   const keyword = (searchNameInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
-  const base = inventory.value.filter((item) => item.type === "PART");
-  return base.filter((item) =>
-    (item.name || "").toLowerCase().includes(keyword)
-  ).slice(0, 10);
+  const base = inventory.value.filter(
+    (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+  );
+  return base
+    .filter((item) => (item.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
 });
 
 const selectNameSuggestion = (name) => {
@@ -428,10 +447,15 @@ const filteredSearchCodeSuggestions = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
   if (!keyword) return [];
   return inventory.value
-    .filter((item) => item.type === "PART")
+    .filter(
+      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    )
     .filter((item) =>
-      (item.new_code || item.code || "").toLowerCase().includes(keyword) ||
-      (item.old_code || "").toLowerCase().includes(keyword)
+      (item.new_code || item.code || "")
+        .toString()
+        .toLowerCase()
+        .includes(keyword) ||
+      (item.old_code || "").toString().toLowerCase().includes(keyword)
     )
     .slice(0, 10);
 });
