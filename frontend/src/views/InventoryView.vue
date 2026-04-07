@@ -24,7 +24,6 @@ const materialInput = ref("");
 const specInput = ref("");
 const supplierCompanyId = ref("");
 const uploadFile = ref(null);
-const lastImportResult = ref(null);
 
 // 수정
 const editingCode = ref("");
@@ -488,7 +487,6 @@ const uploadPartsExcel = async () => {
   const res = await api.post("/products/import-parts", form, {
     headers: { "Content-Type": "multipart/form-data" }
   });
-  lastImportResult.value = res?.data || null;
   uploadFile.value = null;
   await loadInventory();
   await loadProducts();
@@ -532,7 +530,7 @@ const uploadPartsExcel = async () => {
     <!-- 입고 -->
     <div class="panel mb-4">
       <div class="panel-header">단품 등록</div>
-      <div class="p-3 flex gap-2 items-center flex-nowrap overflow-x-auto">
+      <div class="p-3 grid grid-flow-col auto-cols-max gap-2 items-center overflow-x-auto">
 
       <div class="relative w-40">
         <input
@@ -617,10 +615,6 @@ const uploadPartsExcel = async () => {
       <div class="p-3 flex gap-2 items-center flex-wrap">
         <input type="file" @change="onFileChange" class="input w-72" />
         <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
-      </div>
-      <div v-if="lastImportResult" class="px-3 pb-3 text-xs text-slate-600">
-        <div class="mb-1 font-semibold">업로드 응답</div>
-        <pre class="bg-slate-50 border rounded-lg p-2 overflow-auto max-h-40">{{ JSON.stringify(lastImportResult, null, 2) }}</pre>
       </div>
     </div>
 
