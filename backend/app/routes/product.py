@@ -97,6 +97,24 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 header_row = row_idx
                 break
 
+    if ws.max_row <= header_row:
+        best = None
+        for name in wb.sheetnames:
+            candidate = wb[name]
+            if candidate.max_row <= 1:
+                continue
+            for row_idx in range(1, min(candidate.max_row, 10) + 1):
+                candidate_header, candidate_col = build_header_map(
+                    [cell.value for cell in candidate[row_idx]]
+                )
+                if "신품번" in candidate_col:
+                    score = candidate.max_row
+                    if best is None or score > best[0]:
+                        best = (score, candidate, candidate_header, candidate_col, row_idx)
+                    break
+        if best:
+            _, ws, header, col, header_row = best
+
     required = ["기존품번", "신품번", "품명", "규격", "재질", "재고수량", "최소재고", "보관위치", "발주처"]
     for r in required:
         if r not in col:
