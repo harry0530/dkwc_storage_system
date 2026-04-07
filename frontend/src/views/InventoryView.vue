@@ -23,6 +23,10 @@ const oldCodeInput = ref("");
 const materialInput = ref("");
 const specInput = ref("");
 const supplierCompanyId = ref("");
+const supplierInput = ref("");
+const showSupplierDropdown = ref(false);
+const minStockInput = ref("");
+const locationInput = ref("");
 const uploadFile = ref(null);
 
 // 수정
@@ -88,6 +92,10 @@ const addStock = async () => {
 
   let productCode = code.value.trim();
   const nameValue = nameInput.value.trim();
+  const supplierValue = supplierInput.value.trim();
+  const locationValue = locationInput.value.trim();
+  const minStockValue = Number(minStockInput.value || 0);
+  let supplierId = supplierCompanyId.value ? Number(supplierCompanyId.value) : null;
 
   if (!productCode && nameValue) {
     const matches = products.value.filter(
@@ -111,6 +119,24 @@ const addStock = async () => {
     return;
   }
 
+  if (!supplierId && supplierValue) {
+    const match = companies.value.find(
+      (c) => (c.name || "").trim().toLowerCase() === supplierValue.toLowerCase()
+    );
+    if (match) {
+      supplierId = match.id;
+    } else {
+      const created = await api.post("/companies/", {
+        name: supplierValue,
+        phone: "",
+        fax: "",
+        address: ""
+      });
+      supplierId = created?.data?.id || null;
+      await loadCompanies();
+    }
+  }
+
   try {
     // 단품 등록 (신품번 기준)
     await api.post("/products/", {
@@ -121,11 +147,9 @@ const addStock = async () => {
       material: materialInput.value.trim(),
       spec: specInput.value.trim(),
       quantity: Number(quantity.value),
-      min_stock: 0,
-      location: "",
-      supplier_company_id: supplierCompanyId.value
-        ? Number(supplierCompanyId.value)
-        : null
+      min_stock: minStockValue,
+      location: locationValue,
+      supplier_company_id: supplierId
     });
   } catch (err) {
     const message =
@@ -140,6 +164,9 @@ const addStock = async () => {
   materialInput.value = "";
   specInput.value = "";
   supplierCompanyId.value = "";
+  supplierInput.value = "";
+  minStockInput.value = "";
+  locationInput.value = "";
   quantity.value = "";
 
   await loadInventory();
@@ -450,6 +477,20 @@ const filteredAddCodeSuggestions = computed(() => {
     .slice(0, 10);
 });
 
+const filteredSupplierSuggestions = computed(() => {
+  const keyword = (supplierInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return companies.value
+    .filter((c) => (c.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectSupplierSuggestion = (company) => {
+  supplierInput.value = company.name;
+  supplierCompanyId.value = String(company.id);
+  showSupplierDropdown.value = false;
+};
+
 const selectAddCodeSuggestion = (codeValue) => {
   code.value = codeValue;
   showAddCodeDropdown.value = false;
@@ -590,12 +631,37 @@ const uploadPartsExcel = async () => {
         placeholder="규격"
         class="input w-32" />
 
-      <select v-model="supplierCompanyId" class="input w-40">
-        <option value="">발주처 선택</option>
-        <option v-for="c in companies" :key="c.id" :value="c.id">
-          {{ c.name }}
-        </option>
-      </select>
+      <div class="relative w-48">
+        <input
+          v-model="supplierInput"
+          @focus="showSupplierDropdown = true"
+          @blur="deferHide(() => showSupplierDropdown = false)"
+          placeholder="발주처"
+          class="input w-full"
+        />
+        <div
+          v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+        >
+          <div
+            v-for="c in filteredSupplierSuggestions"
+            :key="`supplier-${c.id}`"
+            @click="selectSupplierSuggestion(c)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ c.name }}
+          </div>
+        </div>
+      </div>
+
+      <input v-model="minStockInput"
+        type="number"
+        placeholder="최소재고"
+        class="input w-24" />
+
+      <input v-model="locationInput"
+        placeholder="보관위치"
+        class="input w-28" />
 
       <input v-model="quantity"
         type="number"
@@ -687,8 +753,8 @@ const uploadPartsExcel = async () => {
           <table class="w-full text-left">
             <thead class="table-head">
               <tr>
-                <th class="p-2">신품번</th>
                 <th class="p-2">구품번</th>
+                <th class="p-2">신품번</th>
                 <th class="p-2">품명</th>
                 <th class="p-2">재질</th>
                 <th class="p-2">규격</th>
@@ -700,8 +766,8 @@ const uploadPartsExcel = async () => {
             </thead>
             <tbody>
               <tr v-for="item in allPartsSorted" :key="`modal-${item.new_code || item.code}`" class="border-t hover:bg-slate-50">
-                <td class="p-2 font-medium">{{ item.new_code || "-" }}</td>
-                <td class="p-2">{{ item.old_code || "-" }}</td>
+                <td class="p-2 font-medium">{{ item.old_code || "-" }}</td>
+                <td class="p-2">{{ item.new_code || "-" }}</td>
                 <td class="p-2">{{ item.name || "-" }}</td>
                 <td class="p-2">{{ item.material || "-" }}</td>
                 <td class="p-2">{{ item.spec || "-" }}</td>
