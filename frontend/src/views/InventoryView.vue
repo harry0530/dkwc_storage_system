@@ -426,6 +426,10 @@ const getCompanyName = (companyId) => {
   return company?.name || "-";
 };
 
+const deferHide = (fn) => {
+  window.setTimeout(fn, 200);
+};
+
 const filteredAddNameSuggestions = computed(() => {
   const keyword = (nameInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
@@ -526,7 +530,7 @@ const uploadPartsExcel = async () => {
         <input
           v-model="code"
           @focus="showAddCodeDropdown = true"
-          @blur="setTimeout(() => showAddCodeDropdown = false, 200)"
+          @blur="deferHide(() => showAddCodeDropdown = false)"
           placeholder="신품번"
           class="input w-full"
         />
@@ -553,7 +557,7 @@ const uploadPartsExcel = async () => {
         <input
           v-model="nameInput"
           @focus="showAddNameDropdown = true"
-          @blur="setTimeout(() => showAddNameDropdown = false, 200)"
+          @blur="deferHide(() => showAddNameDropdown = false)"
           placeholder="품명"
           class="input w-full"
         />
@@ -664,7 +668,7 @@ const uploadPartsExcel = async () => {
         <input
           v-model="searchNameInput"
           @focus="showNameDropdown = true"
-          @blur="setTimeout(() => showNameDropdown = false, 200)"
+          @blur="deferHide(() => showNameDropdown = false)"
           placeholder="품명 검색"
           class="input w-full"
         />

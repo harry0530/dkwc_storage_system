@@ -266,6 +266,10 @@ const uploadFinishedExcel = async () => {
   loadData();
   alert("엑셀 업로드 완료");
 };
+
+const deferHide = (fn) => {
+  window.setTimeout(fn, 200);
+};
 </script>
 
 <template>
@@ -280,7 +284,7 @@ const uploadFinishedExcel = async () => {
         <input
           v-model="code"
           @focus="showCreateCodeDropdown = true"
-          @blur="setTimeout(() => showCreateCodeDropdown = false, 200)"
+          @blur="deferHide(() => showCreateCodeDropdown = false)"
           placeholder="품번"
           class="input w-full"
         />
@@ -302,7 +306,7 @@ const uploadFinishedExcel = async () => {
         <input
           v-model="name"
           @focus="showCreateNameDropdown = true"
-          @blur="setTimeout(() => showCreateNameDropdown = false, 200)"
+          @blur="deferHide(() => showCreateNameDropdown = false)"
           placeholder="제품명"
           class="input w-full"
         />
@@ -372,7 +376,7 @@ const uploadFinishedExcel = async () => {
           <input
             v-model="productSearchInput"
             @focus="showNameDropdown = true"
-            @blur="setTimeout(() => showNameDropdown = false, 200)"
+            @blur="deferHide(() => showNameDropdown = false)"
             placeholder="품번/제품명 검색"
             class="input w-full"
           />
@@ -473,7 +477,7 @@ const uploadFinishedExcel = async () => {
                   <input
                     v-model="searchInput[p.code]"
                     @focus="showDropdown[p.code] = true"
-                    @blur="setTimeout(() => showDropdown[p.code] = false, 200)"
+                    @blur="deferHide(() => showDropdown[p.code] = false)"
                     placeholder="부품 검색"
                     class="input h-7 w-28 text-xs"
                   />
