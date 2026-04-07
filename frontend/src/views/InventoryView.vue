@@ -38,13 +38,6 @@ const editQuantity = ref("");
 const editReason = ref("");
 const editSupplierCompanyId = ref("");
 
-// 부품 품번 구성
-const partFirst = ref("1");
-const partTwo = ref("01");
-const partMid = ref("M");
-const partDigit = ref("1");
-const partLast = ref("S");
-
 // 검색용 부품 품번 구성
 const searchPartFirst = ref("1");
 const searchPartTwo = ref("01");
@@ -364,18 +357,27 @@ const saveInventoryPdf = () => {
 };
 
 const exportInventoryExcel = () => {
-  const rows = inventoryReportRows.value.map((r, i) => ({
-    No: i + 1,
-    품번: r.code,
-    제품명: r.name || "-",
-    재고: r.quantity
-  }));
+  const rows = inventory.value
+    .filter(
+      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    )
+    .map((item) => ({
+      기존품번: item.old_code || "",
+      신품번: item.new_code || item.code || "",
+      품명: item.name || "",
+      규격: item.spec || "",
+      재질: item.material || "",
+      재고수량: Number(item.quantity || 0),
+      최소재고: Number(item.min_stock || 0),
+      보관위치: item.location || "",
+      발주처: getCompanyName(item.supplier_company_id)
+    }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "재고현황");
+  XLSX.utils.book_append_sheet(wb, ws, "단품목록");
 
-  const filename = `inventory_${buildTimestampTag()}.xlsx`;
+  const filename = `parts_${buildTimestampTag()}.xlsx`;
   XLSX.writeFile(wb, filename);
 };
 
@@ -383,14 +385,6 @@ onMounted(() => {
   loadInventory();
   loadProducts();
   loadCompanies();
-});
-
-const partCode = computed(
-  () => `${partFirst.value}${partTwo.value}${partMid.value}${partDigit.value}-${partLast.value}`
-);
-
-watch([partFirst, partTwo, partMid, partDigit, partLast], () => {
-  code.value = partCode.value;
 });
 
 const searchPartCode = computed(
@@ -538,7 +532,7 @@ const uploadPartsExcel = async () => {
     <!-- 입고 -->
     <div class="panel mb-4">
       <div class="panel-header">단품 등록</div>
-      <div class="p-3 flex gap-2 items-center flex-wrap">
+      <div class="p-3 flex gap-2 items-center flex-nowrap overflow-x-auto">
 
       <div class="relative w-40">
         <input
@@ -604,34 +598,6 @@ const uploadPartsExcel = async () => {
           {{ c.name }}
         </option>
       </select>
-
-      <div class="flex items-center gap-1">
-        <select v-model="partFirst" class="input w-16">
-          <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
-            {{ n }}
-          </option>
-        </select>
-        <select v-model="partTwo" class="input w-20">
-          <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
-            {{ String(n).padStart(2, '0') }}
-          </option>
-        </select>
-        <select v-model="partMid" class="input w-16">
-          <option value="M">M</option>
-          <option value="S">S</option>
-        </select>
-        <select v-model="partDigit" class="input w-16">
-          <option v-for="n in 10" :key="n" :value="String(n - 1)">
-            {{ n - 1 }}
-          </option>
-        </select>
-        <select v-model="partLast" class="input w-16">
-          <option value="S">S</option>
-          <option value="E">E</option>
-          <option value="T">T</option>
-          <option value="K">K</option>
-        </select>
-      </div>
 
       <input v-model="quantity"
         type="number"
