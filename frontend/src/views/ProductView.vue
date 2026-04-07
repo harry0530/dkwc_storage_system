@@ -3,7 +3,6 @@ import { ref, onMounted, computed, watch } from "vue";
 import api from "../api";
 
 const products = ref([]);
-const aliases = ref([]);
 const boms = ref([]);
 const companies = ref([]);
 
@@ -14,11 +13,8 @@ const type = ref("PART");
 const location = ref("");
 const min_stock = ref("");
 
-// alias 입력
-const alias_company = ref("");
-const alias_code = ref("");
-const selected_product_code = ref("");
-const showCompanyDropdown = ref(false);
+// 발주처 선택
+const supplierCompanyId = ref("");
 
 // BOM 입력 상태
 const bomInput = ref({});
@@ -39,22 +35,19 @@ const finishedTwo = ref("01");
 const finishedMid = ref("M");
 const finishedLast = ref("S");
 
-// alias 수정
-const editingAliasId = ref("");
-const editAliasCompany = ref("");
-const editAliasCode = ref("");
-
 // =====================
 // 데이터 로드
 // =====================
 const loadData = async () => {
   const p = await api.get("/products/");
-  const a = await api.get("/product-alias/");
   const b = await api.get("/bom/");
   const c = await api.get("/companies/");
 
-  products.value = p.data;
-  aliases.value = a.data;
+  products.value = p.data.map((item) => ({
+    ...item,
+    code: item.new_code || item.code || "",
+    old_code: item.old_code || ""
+  }));
   boms.value = b.data;
   companies.value = c.data;
 };
@@ -73,7 +66,13 @@ const createProduct = async () => {
       name: nameValue,
       type: type.value,
       location: (location.value || "").trim(),
-      min_stock: Number(min_stock.value)
+      min_stock: Number(min_stock.value),
+      old_code: "",
+      material: "",
+      spec: "",
+      supplier_company_id: supplierCompanyId.value
+        ? Number(supplierCompanyId.value)
+        : null
     });
   } catch (err) {
     const message =
@@ -107,24 +106,7 @@ const createProduct = async () => {
   name.value = "";
   location.value = "";
   min_stock.value = "";
-
-  loadData();
-};
-
-// =====================
-// alias 등록
-// =====================
-const createAlias = async () => {
-  if (!selected_product_code.value || !alias_company.value || !alias_code.value) return;
-
-  await api.post("/product-alias/", {
-    product_code: selected_product_code.value,
-    company: alias_company.value,
-    alias_code: alias_code.value
-  });
-
-  alias_company.value = "";
-  alias_code.value = "";
+  supplierCompanyId.value = "";
 
   loadData();
 };
@@ -206,54 +188,9 @@ const filteredProducts = computed(() => {
   return sorted.filter((p) => {
     const codeMatch = (p.code || "").toLowerCase().includes(keyword);
     const nameMatch = (p.name || "").toLowerCase().includes(keyword);
-    const aliasMatch = aliases.value.some(
-      (a) =>
-        a.product_code === p.code &&
-        (a.alias_code || "").toLowerCase().includes(keyword)
-    );
-    return codeMatch || nameMatch || aliasMatch;
+    return codeMatch || nameMatch;
   });
 });
-
-const filteredCompanies = computed(() => {
-  const keyword = (alias_company.value || "").trim().toLowerCase();
-  return companies.value.filter((c) =>
-    (c.name || "").toLowerCase().includes(keyword)
-  );
-});
-
-const selectCompany = (name) => {
-  alias_company.value = name;
-  showCompanyDropdown.value = false;
-};
-
-const startEditAlias = (alias) => {
-  editingAliasId.value = String(alias.id);
-  editAliasCompany.value = alias.company || "";
-  editAliasCode.value = alias.alias_code || "";
-};
-
-const cancelEditAlias = () => {
-  editingAliasId.value = "";
-  editAliasCompany.value = "";
-  editAliasCode.value = "";
-};
-
-const saveEditAlias = async (aliasId) => {
-  await api.put(`/product-alias/${aliasId}`, {
-    company: editAliasCompany.value,
-    alias_code: editAliasCode.value
-  });
-  cancelEditAlias();
-  loadData();
-};
-
-const deleteAlias = async (aliasId) => {
-  const ok = window.confirm("해당 회사 품번을 삭제할까요?");
-  if (!ok) return;
-  await api.delete(`/product-alias/${aliasId}`);
-  loadData();
-};
 
 onMounted(loadData);
 
@@ -375,50 +312,15 @@ const selectCreateNameSuggestion = (nameValue) => {
       <input v-model="location" placeholder="위치" class="input w-32" />
       <input v-model="min_stock" type="number" placeholder="최소재고" class="input w-24" />
 
-      <button @click="createProduct" class="btn btn-primary">
-        제품 등록
-      </button>
-
-    </div>
-
-    <!-- alias 등록 -->
-    <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
-
-      <select v-model="selected_product_code" class="input w-40">
-        <option value="">제품 선택</option>
-        <option v-for="p in products.filter(x => x.type === 'FINISHED')" :key="p.code" :value="p.code">
-          {{ p.name }} ({{ p.code }})
+      <select v-model="supplierCompanyId" class="input w-40">
+        <option value="">발주처 선택</option>
+        <option v-for="c in companies" :key="c.id" :value="c.id">
+          {{ c.name }}
         </option>
       </select>
 
-      <div class="relative w-32">
-        <input
-          v-model="alias_company"
-          @focus="showCompanyDropdown = true"
-          @blur="setTimeout(() => showCompanyDropdown = false, 200)"
-          placeholder="회사"
-          class="input w-full"
-        />
-        <div
-          v-if="showCompanyDropdown"
-          @mousedown.prevent
-          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
-        >
-          <div
-            v-for="c in filteredCompanies"
-            :key="c.id"
-            @mousedown.prevent
-            @click="selectCompany(c.name)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-          >
-            {{ c.name }}
-          </div>
-        </div>
-      </div>
-      <input v-model="alias_code" placeholder="회사 품번" class="input w-32" />
-
-      <button @click="createAlias" class="btn btn-success">
-        품번 추가
+      <button @click="createProduct" class="btn btn-primary">
+        제품 등록
       </button>
 
     </div>
@@ -497,7 +399,7 @@ const selectCreateNameSuggestion = (nameValue) => {
             <th class="p-3">제품</th>
             <th class="p-3">위치</th>
             <th class="p-3">최소재고</th>
-            <th class="p-3">회사별 품번</th>
+            <th class="p-3">발주처</th>
             <th class="p-3">BOM</th>
             <th class="p-3">삭제</th>
           </tr>
@@ -514,44 +416,11 @@ const selectCreateNameSuggestion = (nameValue) => {
             <td class="p-3">{{ p.location }}</td>
             <td class="p-3">{{ p.min_stock }}</td>
 
-            <!-- alias -->
+            <!-- 발주처 -->
             <td class="p-3">
-              <div
-                v-for="a in aliases.filter(x => x.product_code === p.code)"
-                :key="a.id"
-                class="text-sm flex items-center gap-2"
-              >
-                <template v-if="editingAliasId === String(a.id)">
-                  <input
-                    v-model="editAliasCompany"
-                    class="input h-7 px-2 text-xs w-20"
-                  />
-                  <span class="text-xs text-gray-400">→</span>
-                  <input
-                    v-model="editAliasCode"
-                    class="input h-7 px-2 text-xs w-24"
-                  />
-                  <button @click="saveEditAlias(a.id)"
-                    class="btn btn-info h-7 px-2 text-xs">
-                    저장
-                  </button>
-                  <button @click="cancelEditAlias"
-                    class="btn btn-secondary h-7 px-2 text-xs">
-                    취소
-                  </button>
-                </template>
-                <template v-else>
-                  <span>{{ a.company }} → {{ a.alias_code }}</span>
-                  <button @click="startEditAlias(a)"
-                    class="btn btn-info h-7 px-2 text-xs">
-                    수정
-                  </button>
-                  <button @click="deleteAlias(a.id)"
-                    class="btn btn-danger h-7 px-2 text-xs">
-                    삭제
-                  </button>
-                </template>
-              </div>
+              <span class="text-sm text-slate-700">
+                {{ companies.find(c => c.id === p.supplier_company_id)?.name || "-" }}
+              </span>
             </td>
 
             <!-- ⭐ BOM -->

@@ -5,21 +5,21 @@ from app import models
 # 제품
 # =====================
 def create_product(db, product):
-    db_product = models.Product(**product.dict())
+    data = product.dict()
+    db_product = models.Product(
+        old_code=data.get("old_code") or "",
+        new_code=data.get("code"),
+        name=data.get("name"),
+        type=data.get("type"),
+        material=data.get("material") or "",
+        spec=data.get("spec") or "",
+        quantity=0,
+        min_stock=data.get("min_stock") or 0,
+        location=data.get("location") or "",
+        supplier_company_id=data.get("supplier_company_id")
+    )
     db.add(db_product)
     db.commit()
-
-    # 재고 자동 생성
-    existing = db.query(models.Inventory).filter(
-        models.Inventory.product_code == product.code
-    ).first()
-
-    if not existing:
-        db.add(models.Inventory(
-            product_code=product.code,
-            quantity=0
-        ))
-        db.commit()
 
     return db_product
 
@@ -64,28 +64,34 @@ def delete_bom(db, bom_id):
 # 재고
 # =====================
 def create_inventory(db, inv):
-    existing = db.query(models.Inventory).filter(
-        models.Inventory.product_code == inv.product_code
+    existing = db.query(models.Product).filter(
+        models.Product.new_code == inv.product_code
     ).first()
 
-    if existing:
-        existing.quantity += inv.quantity
-    else:
-        db.add(models.Inventory(**inv.dict()))
+    if not existing:
+        # old_code로도 확인
+        existing = db.query(models.Product).filter(
+            models.Product.old_code == inv.product_code
+        ).first()
+
+    if not existing:
+        raise Exception("존재하지 않는 품번")
+
+    existing.quantity += inv.quantity
 
     # ⭐ 입고 로그
     db.add(models.Transaction(
-        product_code=inv.product_code,
+        product_code=existing.new_code,
         quantity=inv.quantity,
         type="IN",
-        reason="STOCK_IN"
+        reason=inv.reason or "STOCK_IN"
     ))
 
     db.commit()
 
 
 def get_inventory(db):
-    return db.query(models.Inventory).all()
+    return db.query(models.Product).filter(models.Product.type == "PART").all()
 
 
 # =====================

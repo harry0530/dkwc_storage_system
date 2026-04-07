@@ -12,26 +12,23 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
     company = order.company
     input_code = order.product_code
 
-    # 1️⃣ alias 검사 (타회사 품번)
-    alias = db.query(models.ProductAlias).filter(
-        models.ProductAlias.company == company,
-        models.ProductAlias.alias_code == input_code
+    # 신품번 우선
+    product = db.query(models.Product).filter(
+        models.Product.new_code == input_code,
+        models.Product.type == "FINISHED"
     ).first()
 
-    if alias:
-        real_code = alias.product_code
-
-    else:
-        # 2️⃣ 우리 회사 품번 검사
+    # 구품번도 허용
+    if not product:
         product = db.query(models.Product).filter(
-            models.Product.code == input_code
+            models.Product.old_code == input_code,
+            models.Product.type == "FINISHED"
         ).first()
 
-        if product:
-            real_code = input_code
-        else:
-            # 3️⃣ 잘못된 품번 차단
-            raise Exception("존재하지 않는 품번입니다")
+    if not product:
+        raise Exception("존재하지 않는 품번입니다")
+
+    real_code = product.new_code
 
     db_order = models.Order(
         product_code=real_code,
@@ -55,7 +52,7 @@ def get_orders(db: Session = Depends(get_db)):
 
     for o in orders:
         product = db.query(models.Product).filter(
-            models.Product.code == o.product_code
+            models.Product.new_code == o.product_code
         ).first()
 
         result.append({
@@ -85,23 +82,25 @@ def produce(order_id: int, db: Session = Depends(get_db)):
 
     # 재고 체크
     for bom in boms:
-        inv = db.query(models.Inventory).filter(
-            models.Inventory.product_code == bom.child_code
+        part = db.query(models.Product).filter(
+            models.Product.new_code == bom.child_code,
+            models.Product.type == "PART"
         ).first()
 
         required = bom.quantity * order.quantity
 
-        if not inv or inv.quantity < required:
+        if not part or part.quantity < required:
             raise Exception("재고 부족")
 
     # 재고 차감
     for bom in boms:
-        inv = db.query(models.Inventory).filter(
-            models.Inventory.product_code == bom.child_code
+        part = db.query(models.Product).filter(
+            models.Product.new_code == bom.child_code,
+            models.Product.type == "PART"
         ).first()
 
         required = bom.quantity * order.quantity
-        inv.quantity -= required
+        part.quantity -= required
 
         db.add(models.Transaction(
             product_code=bom.child_code,
@@ -130,12 +129,13 @@ def undo(order_id: int, db: Session = Depends(get_db)):
 
     # 재고 복구
     for bom in boms:
-        inv = db.query(models.Inventory).filter(
-            models.Inventory.product_code == bom.child_code
+        part = db.query(models.Product).filter(
+            models.Product.new_code == bom.child_code,
+            models.Product.type == "PART"
         ).first()
 
         restore = bom.quantity * order.quantity
-        inv.quantity += restore
+        part.quantity += restore
 
         db.add(models.Transaction(
             product_code=bom.child_code,

@@ -5,7 +5,6 @@ import api from "../api";
 const orders = ref([]);
 const products = ref([]);
 const companies = ref([]);
-const aliases = ref([]);
 const boms = ref([]);
 const inventory = ref([]);
 
@@ -32,14 +31,16 @@ const loadAll = async () => {
   const o = await api.get("/orders/");
   const p = await api.get("/products/");
   const c = await api.get("/companies/");
-  const a = await api.get("/product-alias/");
   const b = await api.get("/bom/");
   const i = await api.get("/inventory/");
 
   orders.value = o.data;
-  products.value = p.data;
+  products.value = p.data.map((item) => ({
+    ...item,
+    code: item.new_code || item.code || "",
+    old_code: item.old_code || ""
+  }));
   companies.value = c.data;
-  aliases.value = a.data;
   boms.value = b.data;
   inventory.value = i.data;
 };
@@ -58,14 +59,21 @@ const updateProductName = () => {
 
   const cleanInput = clean(inputCode);
 
-  // ⭐ alias 찾기
-  const alias = aliases.value.find(a =>
-    a.company === selectedCompany.value &&
-    clean(a.alias_code) === cleanInput
+  const productByNew = products.value.find(p =>
+    clean(p.code) === cleanInput
+  );
+  const productByOld = products.value.find(p =>
+    clean(p.old_code) === cleanInput
   );
 
   let realCode = inputCode;
-  if (alias) realCode = alias.product_code;
+  let fromOld = false;
+  if (productByNew) {
+    realCode = productByNew.code;
+  } else if (productByOld) {
+    realCode = productByOld.code;
+    fromOld = true;
+  }
 
   const cleanReal = clean(realCode);
 
@@ -81,7 +89,7 @@ const updateProductName = () => {
   }
 
   // 표시
-  displayProduct.value = alias
+  displayProduct.value = fromOld
     ? `${inputCode} → ${realCode} (${product.name})`
     : `${realCode} (${product.name})`;
 
@@ -138,24 +146,26 @@ const showCodeDropdown = ref(false);
 
 const filteredCodes = computed(() => {
   const keyword = (codeInput.value || "").trim().toLowerCase();
-  const aliasMatches = aliases.value
-    .filter(a => a.company === selectedCompany.value)
-    .filter(a => !keyword || a.alias_code.toLowerCase().includes(keyword))
-    .map(a => ({
-      key: `alias-${a.id}`,
-      code: a.alias_code,
-      label: `${a.alias_code} (타사 품번)`
-    }));
+  const list = [];
 
-  const productMatches = products.value
-    .filter(p => !keyword || p.code.toLowerCase().includes(keyword))
-    .map(p => ({
-      key: `prod-${p.code}`,
-      code: p.code,
-      label: `${p.code} (우리 품번)`
-    }));
+  for (const p of products.value) {
+    if (p.code && (!keyword || p.code.toLowerCase().includes(keyword))) {
+      list.push({
+        key: `new-${p.code}`,
+        code: p.code,
+        label: `${p.code} (신품번)`
+      });
+    }
+    if (p.old_code && (!keyword || p.old_code.toLowerCase().includes(keyword))) {
+      list.push({
+        key: `old-${p.old_code}`,
+        code: p.old_code,
+        label: `${p.old_code} (구품번)`
+      });
+    }
+  }
 
-  return [...aliasMatches, ...productMatches];
+  return list;
 });
 
 const selectCode = (code) => {

@@ -2,11 +2,15 @@ from pydantic import BaseModel
 
 
 class ProductCreate(BaseModel):
-    code: str
+    code: str  # new_code
     name: str
     type: str
-    location: str
-    min_stock: int   # 🔥 추가
+    location: str | None = ""
+    min_stock: int
+    old_code: str | None = ""
+    material: str | None = ""
+    spec: str | None = ""
+    supplier_company_id: int | None = None
 
 
 class BOMCreate(BaseModel):
@@ -18,6 +22,7 @@ class BOMCreate(BaseModel):
 class InventoryCreate(BaseModel):
     product_code: str
     quantity: int
+    reason: str | None = None
 
 
 class OrderCreate(BaseModel):

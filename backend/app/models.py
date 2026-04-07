@@ -16,28 +16,16 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True)
-    code = Column(String, unique=True)
+    old_code = Column(String)
+    new_code = Column(String, unique=True)
     name = Column(String)
     type = Column(String)
-    location = Column(String)
-    min_stock = Column(Integer, default=0)
-
-
-class ProductAlias(Base):
-    __tablename__ = "product_alias"
-
-    id = Column(Integer, primary_key=True)
-    product_code = Column(String, ForeignKey("products.code"))
-    company = Column(String)  # ⭐ 지금은 문자열 유지 (간단 버전)
-    alias_code = Column(String)
-
-
-class Inventory(Base):
-    __tablename__ = "inventory"
-
-    id = Column(Integer, primary_key=True)
-    product_code = Column(String, unique=True)
+    material = Column(String)
+    spec = Column(String)
     quantity = Column(Integer, default=0)
+    min_stock = Column(Integer, default=0)
+    location = Column(String)
+    supplier_company_id = Column(Integer, ForeignKey("companies.id"))
 
 
 class BOM(Base):

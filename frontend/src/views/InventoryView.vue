@@ -54,7 +54,11 @@ const loadInventory = async () => {
 
 const loadProducts = async () => {
   const res = await api.get("/products/");
-  products.value = res.data;
+  products.value = res.data.map((item) => ({
+    ...item,
+    code: item.new_code || item.code || "",
+    old_code: item.old_code || ""
+  }));
 };
 
 // =====================
