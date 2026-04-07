@@ -28,6 +28,7 @@ const showNameDropdown = ref(false);
 // 등록 입력 추천
 const showCreateCodeDropdown = ref(false);
 const showCreateNameDropdown = ref(false);
+const finishedUploadFile = ref(null);
 
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
@@ -249,12 +250,28 @@ const selectCreateNameSuggestion = (nameValue) => {
   name.value = nameValue;
   showCreateNameDropdown.value = false;
 };
+
+const onFinishedFileChange = (e) => {
+  finishedUploadFile.value = e.target.files?.[0] || null;
+};
+
+const uploadFinishedExcel = async () => {
+  if (!finishedUploadFile.value) return;
+  const form = new FormData();
+  form.append("file", finishedUploadFile.value);
+  await api.post("/products/import-finished", form, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  finishedUploadFile.value = null;
+  loadData();
+  alert("엑셀 업로드 완료");
+};
 </script>
 
 <template>
   <div>
 
-    <h2 class="page-title mb-6">📦 상품 + BOM 관리</h2>
+    <h2 class="page-title mb-6">📦 완제품 관리</h2>
 
     <!-- 제품 등록 -->
     <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
@@ -323,6 +340,14 @@ const selectCreateNameSuggestion = (nameValue) => {
         제품 등록
       </button>
 
+    </div>
+
+    <div class="panel mb-6">
+      <div class="panel-header">완제품 엑셀 업로드</div>
+      <div class="p-3 flex gap-2 items-center flex-wrap">
+        <input type="file" @change="onFinishedFileChange" class="input w-72" />
+        <button @click="uploadFinishedExcel" class="btn btn-primary">업로드</button>
+      </div>
     </div>
 
     <!-- 제품 목록 -->

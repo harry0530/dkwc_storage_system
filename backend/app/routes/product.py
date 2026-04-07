@@ -122,6 +122,105 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     return {"created": created, "updated": updated}
 
 
+@router.post("/import-finished")
+def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="파일이 없습니다")
+
+    content = file.file.read()
+    wb = openpyxl.load_workbook(BytesIO(content))
+    ws = wb.active
+
+    header = [cell.value for cell in ws[1]]
+    col = {name: idx for idx, name in enumerate(header)}
+
+    required = ["기존품번", "신품번", "품명", "규격", "재질", "BOM", "발주처"]
+    for r in required:
+        if r not in col:
+            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
+
+    created = 0
+    updated = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        old_code = (row[col["기존품번"]] or "").strip()
+        new_code = (row[col["신품번"]] or "").strip()
+        name = (row[col["품명"]] or "").strip()
+        spec = (row[col["규격"]] or "").strip()
+        material = (row[col["재질"]] or "").strip()
+        bom_text = (row[col["BOM"]] or "").strip()
+        supplier_name = (row[col["발주처"]] or "").strip()
+
+        if not new_code:
+            continue
+
+        supplier_id = None
+        if supplier_name:
+            company = db.query(models.Company).filter(
+                models.Company.name == supplier_name
+            ).first()
+            if not company:
+                company = models.Company(name=supplier_name, phone="", fax="", address="")
+                db.add(company)
+                db.commit()
+                db.refresh(company)
+            supplier_id = company.id
+
+        product = db.query(models.Product).filter(
+            models.Product.new_code == new_code
+        ).first()
+
+        if product:
+            product.old_code = old_code
+            product.name = name
+            product.type = "FINISHED"
+            product.material = material
+            product.spec = spec
+            product.supplier_company_id = supplier_id
+            updated += 1
+        else:
+            db.add(models.Product(
+                old_code=old_code,
+                new_code=new_code,
+                name=name,
+                type="FINISHED",
+                material=material,
+                spec=spec,
+                quantity=0,
+                min_stock=0,
+                location="",
+                supplier_company_id=supplier_id
+            ))
+            created += 1
+
+        if bom_text:
+            for chunk in bom_text.split(","):
+                part = chunk.strip()
+                if not part or ":" not in part:
+                    continue
+                child_code, qty_text = part.split(":", 1)
+                child_code = child_code.strip()
+                try:
+                    qty = int(qty_text.strip())
+                except Exception:
+                    continue
+
+                existing = db.query(models.BOM).filter(
+                    models.BOM.parent_code == new_code,
+                    models.BOM.child_code == child_code
+                ).first()
+                if not existing:
+                    db.add(models.BOM(
+                        parent_code=new_code,
+                        child_code=child_code,
+                        quantity=qty
+                    ))
+
+    db.commit()
+
+    return {"created": created, "updated": updated}
+
+
 @router.get("/")
 def get_products(db: Session = Depends(get_db)):
     return db.query(models.Product).all()

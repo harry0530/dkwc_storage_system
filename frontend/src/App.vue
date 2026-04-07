@@ -17,8 +17,8 @@
       </div>
 
       <nav class="mb-6 flex flex-wrap gap-2 text-slate-700 font-medium">
-        <router-link class="btn btn-secondary" to="/">재고</router-link>
-        <router-link class="btn btn-secondary" to="/products">상품</router-link>
+        <router-link class="btn btn-secondary" to="/">단품</router-link>
+        <router-link class="btn btn-secondary" to="/products">완제품</router-link>
         <router-link class="btn btn-secondary" to="/orders">주문</router-link>
         <router-link class="btn btn-secondary" to="/companies">거래처</router-link>
       </nav>

@@ -409,7 +409,7 @@ const uploadPartsExcel = async () => {
   <div>
 
     <div class="flex items-center justify-between mb-6">
-      <h2 class="page-title">📦 재고 관리</h2>
+      <h2 class="page-title">📦 단품 관리</h2>
       <div class="flex gap-2">
         <button
           @click="saveInventoryPdf"
