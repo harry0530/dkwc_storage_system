@@ -498,11 +498,14 @@ const uploadPartsExcel = async () => {
   await loadProducts();
   const created = Number(res?.data?.created || 0);
   const updated = Number(res?.data?.updated || 0);
+  const skipped = Number(res?.data?.skipped || 0);
   if (created + updated === 0) {
-    alert("업로드 완료(처리 0건) — 엑셀의 신품번/품명 값이 비어있는지 확인해줘.");
+    alert(
+      `업로드 완료(처리 0건, 스킵 ${skipped}건) — 엑셀의 신품번/품명 값이 비어있는지 확인해줘.`
+    );
     return;
   }
-  alert(`엑셀 업로드 완료 (신규 ${created}건, 업데이트 ${updated}건)`);
+  alert(`엑셀 업로드 완료 (신규 ${created}건, 업데이트 ${updated}건, 스킵 ${skipped}건)`);
 };
 </script>
 

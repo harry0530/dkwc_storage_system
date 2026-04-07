@@ -50,8 +50,21 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     wb = openpyxl.load_workbook(BytesIO(content))
     ws = wb.active
 
-    header = [cell.value for cell in ws[1]]
-    col = {name: idx for idx, name in enumerate(header)}
+    def normalize(value):
+        return str(value or "").strip()
+
+    def normalize_code(value):
+        raw = normalize(value)
+        if raw.endswith(".0"):
+            trimmed = raw[:-2]
+            if trimmed.isdigit():
+                return trimmed
+        return raw
+
+    header = [normalize(cell.value) for cell in ws[1]]
+    col = {name: idx for idx, name in enumerate(header) if name}
+    if "구품번" in col and "기존품번" not in col:
+        col["기존품번"] = col["구품번"]
 
     required = ["기존품번", "신품번", "품명", "규격", "재질", "재고수량", "최소재고", "보관위치", "발주처"]
     for r in required:
@@ -60,19 +73,21 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     created = 0
     updated = 0
+    skipped = 0
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = str(row[col["기존품번"]] or "").strip()
-        new_code = str(row[col["신품번"]] or "").strip()
-        name = str(row[col["품명"]] or "").strip()
-        spec = str(row[col["규격"]] or "").strip()
-        material = str(row[col["재질"]] or "").strip()
+        old_code = normalize_code(row[col["기존품번"]])
+        new_code = normalize_code(row[col["신품번"]])
+        name = normalize(row[col["품명"]])
+        spec = normalize(row[col["규격"]])
+        material = normalize(row[col["재질"]])
         quantity = int(row[col["재고수량"]] or 0)
         min_stock = int(row[col["최소재고"]] or 0)
-        location = (row[col["보관위치"]] or "").strip()
-        supplier_name = str(row[col["발주처"]] or "").strip()
+        location = normalize(row[col["보관위치"]])
+        supplier_name = normalize(row[col["발주처"]])
 
         if not new_code:
+            skipped += 1
             continue
 
         supplier_id = None
@@ -119,7 +134,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     db.commit()
 
-    return {"created": created, "updated": updated}
+    return {"created": created, "updated": updated, "skipped": skipped}
 
 
 @router.post("/import-finished")
