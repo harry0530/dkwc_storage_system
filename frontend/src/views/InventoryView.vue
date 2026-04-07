@@ -680,6 +680,7 @@ const uploadPartsExcel = async () => {
         </div>
       </div>
     </div>
+    </div>
 
     <div class="panel mb-4">
       <div class="panel-header">엑셀 업로드</div>
