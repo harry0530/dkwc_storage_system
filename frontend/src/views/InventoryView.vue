@@ -250,7 +250,8 @@ const filteredInventory = computed(() => {
   const base = inventory.value.filter((item) => item.type === "PART");
   if (!keyword && !nameKeyword) return [];
   return base.filter((item) =>
-    (keyword && (item.code || "").toLowerCase().includes(keyword)) ||
+    (keyword && ((item.new_code || item.code || "").toLowerCase().includes(keyword) ||
+      (item.old_code || "").toLowerCase().includes(keyword))) ||
     (nameKeyword && (item.name || "").toLowerCase().includes(nameKeyword))
   );
 });
@@ -378,13 +379,32 @@ const filteredAddCodeSuggestions = computed(() => {
   if (!keyword) return [];
   return products.value
     .filter((p) => p.type === "PART")
-    .filter((p) => (p.code || "").toLowerCase().includes(keyword))
+    .filter((p) =>
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword)
+    )
     .slice(0, 10);
 });
 
 const selectAddCodeSuggestion = (codeValue) => {
   code.value = codeValue;
   showAddCodeDropdown.value = false;
+};
+
+const filteredSearchCodeSuggestions = computed(() => {
+  const keyword = (searchCode.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return inventory.value
+    .filter((item) => item.type === "PART")
+    .filter((item) =>
+      (item.new_code || item.code || "").toLowerCase().includes(keyword) ||
+      (item.old_code || "").toLowerCase().includes(keyword)
+    )
+    .slice(0, 10);
+});
+
+const selectSearchCodeSuggestion = (codeValue) => {
+  searchCode.value = codeValue;
 };
 
 const onFileChange = (e) => {
@@ -578,16 +598,31 @@ const uploadPartsExcel = async () => {
         </select>
       </div>
 
-      <input v-model="searchCode"
-        placeholder="품번 검색"
-        class="input w-48" />
+      <div class="relative w-48">
+        <input v-model="searchCode"
+          placeholder="구/신품번 검색"
+          class="input w-full" />
+        <div
+          v-if="filteredSearchCodeSuggestions.length"
+          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+        >
+          <div
+            v-for="item in filteredSearchCodeSuggestions"
+            :key="`search-code-${item.new_code || item.code}`"
+            @click="selectSearchCodeSuggestion(item.new_code || item.code)"
+            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+          >
+            {{ item.new_code || item.code }} / {{ item.old_code || "-" }} ({{ item.name }})
+          </div>
+        </div>
+      </div>
 
       <div class="relative w-56">
         <input
           v-model="searchNameInput"
           @focus="showNameDropdown = true"
           @blur="setTimeout(() => showNameDropdown = false, 200)"
-          placeholder="제품명 검색"
+          placeholder="품명 검색"
           class="input w-full"
         />
         <div
