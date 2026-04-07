@@ -168,13 +168,21 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     db.commit()
 
+    sample_rows = []
+    for row in ws.iter_rows(min_row=1, max_row=min(3, ws.max_row), values_only=True):
+        sample_rows.append([normalize(value) for value in row])
+
     return {
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "rows_total": rows_total,
         "sheet": ws.title,
-        "header": header
+        "header": header,
+        "max_row": ws.max_row,
+        "max_column": ws.max_column,
+        "header_row": header_row,
+        "sample_rows": sample_rows
     }
 
 

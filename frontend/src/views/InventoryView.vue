@@ -493,6 +493,7 @@ const uploadPartsExcel = async () => {
   const res = await api.post("/products/import-parts", form, {
     headers: { "Content-Type": "multipart/form-data" }
   });
+  console.log("import-parts response", res?.data);
   uploadFile.value = null;
   await loadInventory();
   await loadProducts();
@@ -502,7 +503,7 @@ const uploadPartsExcel = async () => {
   const rowsTotal = Number(res?.data?.rows_total || 0);
   if (created + updated === 0) {
     alert(
-      `업로드 완료(처리 0건, 스킵 ${skipped}건, 총행 ${rowsTotal}건) — 엑셀의 신품번/품명 값이 비어있는지 확인해줘.`
+      `업로드 완료(처리 0건, 스킵 ${skipped}건, 총행 ${rowsTotal}건) — 업로드 파일 저장 여부/시트/헤더를 확인해줘. (콘솔에 상세 로그 출력됨)`
     );
     return;
   }
