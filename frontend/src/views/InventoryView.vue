@@ -571,108 +571,110 @@ const uploadPartsExcel = async () => {
     <!-- 입고 -->
     <div class="panel mb-4">
       <div class="panel-header">단품 등록</div>
-      <div class="p-3 grid grid-flow-col auto-cols-max gap-2 items-center overflow-x-auto">
+      <div class="p-3 flex flex-col gap-2">
 
-      <input v-model="oldCodeInput"
-        placeholder="구품번"
-        class="input w-32" />
+      <div class="flex gap-2 items-center flex-wrap">
+        <input v-model="oldCodeInput"
+          placeholder="구품번"
+          class="input w-32" />
 
-      <div class="relative w-40">
-        <input
-          v-model="code"
-          @focus="showAddCodeDropdown = true"
-          @blur="deferHide(() => showAddCodeDropdown = false)"
-          placeholder="신품번"
-          class="input w-full"
-        />
-        <div
-          v-if="showAddCodeDropdown && filteredAddCodeSuggestions.length"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-        >
+        <div class="relative w-40">
+          <input
+            v-model="code"
+            @focus="showAddCodeDropdown = true"
+            @blur="deferHide(() => showAddCodeDropdown = false)"
+            placeholder="신품번"
+            class="input w-full"
+          />
           <div
-            v-for="item in filteredAddCodeSuggestions"
-            :key="`add-code-${item.code}`"
-            @click="selectAddCodeSuggestion(item.code)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            v-if="showAddCodeDropdown && filteredAddCodeSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
           >
-            {{ item.code }} ({{ item.name }})
+            <div
+              v-for="item in filteredAddCodeSuggestions"
+              :key="`add-code-${item.code}`"
+              @click="selectAddCodeSuggestion(item.code)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ item.code }} ({{ item.name }})
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="relative w-48">
-        <input
-          v-model="nameInput"
-          @focus="showAddNameDropdown = true"
-          @blur="deferHide(() => showAddNameDropdown = false)"
-          placeholder="품명"
-          class="input w-full"
-        />
-        <div
-          v-if="showAddNameDropdown && filteredAddNameSuggestions.length"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-        >
+        <div class="relative w-56">
+          <input
+            v-model="nameInput"
+            @focus="showAddNameDropdown = true"
+            @blur="deferHide(() => showAddNameDropdown = false)"
+            placeholder="품명"
+            class="input w-full"
+          />
           <div
-            v-for="item in filteredAddNameSuggestions"
-            :key="`add-name-${item.code}`"
-            @click="selectAddNameSuggestion(item.name)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            v-if="showAddNameDropdown && filteredAddNameSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
           >
-            {{ item.name }} ({{ item.code }})
+            <div
+              v-for="item in filteredAddNameSuggestions"
+              :key="`add-name-${item.code}`"
+              @click="selectAddNameSuggestion(item.name)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ item.name }} ({{ item.code }})
+            </div>
           </div>
         </div>
+
+        <input v-model="quantity"
+          type="number"
+          placeholder="재고수량"
+          class="input w-24" />
+
+        <button @click="addStock"
+          class="btn btn-primary">
+          등록
+        </button>
       </div>
 
-      <input v-model="materialInput"
-        placeholder="재질"
-        class="input w-32" />
+      <div class="flex gap-2 items-center flex-wrap">
+        <input v-model="materialInput"
+          placeholder="재질"
+          class="input w-32" />
 
-      <input v-model="specInput"
-        placeholder="규격"
-        class="input w-32" />
+        <input v-model="specInput"
+          placeholder="규격"
+          class="input w-32" />
 
-      <div class="relative w-48">
-        <input
-          v-model="supplierInput"
-          @focus="showSupplierDropdown = true"
-          @blur="deferHide(() => showSupplierDropdown = false)"
-          placeholder="발주처"
-          class="input w-full"
-        />
-        <div
-          v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-        >
+        <input v-model="minStockInput"
+          type="number"
+          placeholder="최소재고"
+          class="input w-24" />
+
+        <input v-model="locationInput"
+          placeholder="보관위치"
+          class="input w-28" />
+
+        <div class="relative w-48">
+          <input
+            v-model="supplierInput"
+            @focus="showSupplierDropdown = true"
+            @blur="deferHide(() => showSupplierDropdown = false)"
+            placeholder="발주처"
+            class="input w-full"
+          />
           <div
-            v-for="c in filteredSupplierSuggestions"
-            :key="`supplier-${c.id}`"
-            @click="selectSupplierSuggestion(c)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
           >
-            {{ c.name }}
+            <div
+              v-for="c in filteredSupplierSuggestions"
+              :key="`supplier-${c.id}`"
+              @click="selectSupplierSuggestion(c)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ c.name }}
+            </div>
           </div>
         </div>
-      </div>
-
-      <input v-model="minStockInput"
-        type="number"
-        placeholder="최소재고"
-        class="input w-24" />
-
-      <input v-model="locationInput"
-        placeholder="보관위치"
-        class="input w-28" />
-
-      <input v-model="quantity"
-        type="number"
-        placeholder="재고수량"
-        class="input w-24" />
-
-      <button @click="addStock"
-        class="btn btn-primary">
-        등록
-      </button>
-
       </div>
     </div>
 
