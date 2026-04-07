@@ -451,6 +451,8 @@ const deferHide = (fn) => {
   window.setTimeout(fn, 200);
 };
 
+const buildVersion = "58d5e01";
+
 const filteredAddNameSuggestions = computed(() => {
   const keyword = (nameInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
@@ -552,7 +554,8 @@ const uploadPartsExcel = async () => {
 
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">📦 단품 관리</h2>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
+        <span class="text-xs text-slate-500">v{{ buildVersion }}</span>
         <button
           @click="saveInventoryPdf"
           class="btn btn-info"
