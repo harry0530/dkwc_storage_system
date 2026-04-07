@@ -12,6 +12,16 @@ class Company(Base):
     address = Column(String)
     fax = Column(String)
 
+class CompanyEmployee(Base):
+    __tablename__ = "company_employees"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"))
+    department = Column(String)
+    name = Column(String)
+    title = Column(String)
+    phone = Column(String)
+
 class Product(Base):
     __tablename__ = "products"
 

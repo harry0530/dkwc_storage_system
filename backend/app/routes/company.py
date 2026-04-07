@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
@@ -71,3 +71,51 @@ def update_company(company_id: int, data: dict, db: Session = Depends(get_db)):
     db.commit()
 
     return company
+
+
+# ⭐ 거래처 직원 등록
+@router.post("/{company_id}/employees")
+def create_employee(company_id: int, data: dict, db: Session = Depends(get_db)):
+    company = db.query(models.Company).filter(
+        models.Company.id == company_id
+    ).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="거래처 없음")
+
+    employee = models.CompanyEmployee(
+        company_id=company_id,
+        department=data.get("department", ""),
+        name=data.get("name", ""),
+        title=data.get("title", ""),
+        phone=data.get("phone", "")
+    )
+
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+
+    return employee
+
+
+# ⭐ 거래처 직원 조회
+@router.get("/{company_id}/employees")
+def get_employees(company_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CompanyEmployee).filter(
+        models.CompanyEmployee.company_id == company_id
+    ).all()
+
+
+# ⭐ 거래처 직원 삭제
+@router.delete("/employees/{employee_id}")
+def delete_employee(employee_id: int, db: Session = Depends(get_db)):
+    employee = db.query(models.CompanyEmployee).filter(
+        models.CompanyEmployee.id == employee_id
+    ).first()
+
+    if not employee:
+        raise HTTPException(status_code=404, detail="직원 없음")
+
+    db.delete(employee)
+    db.commit()
+
+    return {"message": "삭제 완료"}
