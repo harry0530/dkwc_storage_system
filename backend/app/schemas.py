@@ -11,6 +11,7 @@ class ProductCreate(BaseModel):
     material: str | None = ""
     spec: str | None = ""
     supplier_company_id: int | None = None
+    quantity: int | None = 0
 
 
 class BOMCreate(BaseModel):

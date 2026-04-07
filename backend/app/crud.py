@@ -13,7 +13,7 @@ def create_product(db, product):
         type=data.get("type"),
         material=data.get("material") or "",
         spec=data.get("spec") or "",
-        quantity=0,
+        quantity=data.get("quantity") or 0,
         min_stock=data.get("min_stock") or 0,
         location=data.get("location") or "",
         supplier_company_id=data.get("supplier_company_id")

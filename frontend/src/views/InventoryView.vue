@@ -17,6 +17,11 @@ const nameInput = ref("");
 const quantity = ref("");
 const showAddNameDropdown = ref(false);
 const showAddCodeDropdown = ref(false);
+const oldCodeInput = ref("");
+const materialInput = ref("");
+const specInput = ref("");
+const supplierCompanyId = ref("");
+const uploadFile = ref(null);
 
 // 수정
 const editingCode = ref("");
@@ -65,6 +70,7 @@ const loadProducts = async () => {
 // 입고
 // =====================
 const addStock = async () => {
+  if (!code.value && !nameInput.value) return;
   if (!quantity.value) return;
 
   let productCode = code.value.trim();
@@ -93,22 +99,38 @@ const addStock = async () => {
   }
 
   try {
-    await api.post("/inventory/", {
-      product_code: productCode,
-      quantity: Number(quantity.value)
+    // 단품 등록 (신품번 기준)
+    await api.post("/products/", {
+      code: productCode,
+      old_code: oldCodeInput.value.trim(),
+      name: nameValue,
+      type: "PART",
+      material: materialInput.value.trim(),
+      spec: specInput.value.trim(),
+      quantity: Number(quantity.value),
+      min_stock: 0,
+      location: "",
+      supplier_company_id: supplierCompanyId.value
+        ? Number(supplierCompanyId.value)
+        : null
     });
   } catch (err) {
     const message =
-      err?.response?.data?.detail || "입고 실패: 로그인 상태를 확인하세요.";
+      err?.response?.data?.detail || "등록 실패: 로그인 상태를 확인하세요.";
     alert(message);
     return;
   }
 
   code.value = "";
+  oldCodeInput.value = "";
   nameInput.value = "";
+  materialInput.value = "";
+  specInput.value = "";
+  supplierCompanyId.value = "";
   quantity.value = "";
 
   await loadInventory();
+  await loadProducts();
   alert("입고 완료");
 };
 
@@ -364,6 +386,23 @@ const selectAddCodeSuggestion = (codeValue) => {
   code.value = codeValue;
   showAddCodeDropdown.value = false;
 };
+
+const onFileChange = (e) => {
+  uploadFile.value = e.target.files?.[0] || null;
+};
+
+const uploadPartsExcel = async () => {
+  if (!uploadFile.value) return;
+  const form = new FormData();
+  form.append("file", uploadFile.value);
+  await api.post("/products/import-parts", form, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  uploadFile.value = null;
+  await loadInventory();
+  await loadProducts();
+  alert("엑셀 업로드 완료");
+};
 </script>
 
 <template>
@@ -389,7 +428,7 @@ const selectAddCodeSuggestion = (codeValue) => {
 
     <!-- 입고 -->
     <div class="panel mb-4">
-      <div class="panel-header">입고</div>
+      <div class="panel-header">단품 등록</div>
       <div class="p-3 flex gap-2 items-center flex-wrap">
 
       <div class="relative w-40">
@@ -397,7 +436,7 @@ const selectAddCodeSuggestion = (codeValue) => {
           v-model="code"
           @focus="showAddCodeDropdown = true"
           @blur="setTimeout(() => showAddCodeDropdown = false, 200)"
-          placeholder="품번 직접 입력"
+          placeholder="신품번"
           class="input w-full"
         />
         <div
@@ -415,12 +454,16 @@ const selectAddCodeSuggestion = (codeValue) => {
         </div>
       </div>
 
+      <input v-model="oldCodeInput"
+        placeholder="구품번"
+        class="input w-32" />
+
       <div class="relative w-48">
         <input
           v-model="nameInput"
           @focus="showAddNameDropdown = true"
           @blur="setTimeout(() => showAddNameDropdown = false, 200)"
-          placeholder="제품명"
+          placeholder="품명"
           class="input w-full"
         />
         <div
@@ -437,6 +480,21 @@ const selectAddCodeSuggestion = (codeValue) => {
           </div>
         </div>
       </div>
+
+      <input v-model="materialInput"
+        placeholder="재질"
+        class="input w-32" />
+
+      <input v-model="specInput"
+        placeholder="규격"
+        class="input w-32" />
+
+      <select v-model="supplierCompanyId" class="input w-40">
+        <option value="">발주처 선택</option>
+        <option v-for="c in companies" :key="c.id" :value="c.id">
+          {{ c.name }}
+        </option>
+      </select>
 
       <div class="flex items-center gap-1">
         <select v-model="partFirst" class="input w-16">
@@ -468,14 +526,22 @@ const selectAddCodeSuggestion = (codeValue) => {
 
       <input v-model="quantity"
         type="number"
-        placeholder="수량"
+        placeholder="재고수량"
         class="input w-24" />
 
       <button @click="addStock"
         class="btn btn-primary">
-        입고
+        등록
       </button>
 
+      </div>
+    </div>
+
+    <div class="panel mb-4">
+      <div class="panel-header">엑셀 업로드</div>
+      <div class="p-3 flex gap-2 items-center flex-wrap">
+        <input type="file" @change="onFileChange" class="input w-72" />
+        <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
       </div>
     </div>
 

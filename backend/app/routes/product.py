@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from io import BytesIO
+import openpyxl
 from app.database import get_db
 from app import models, schemas
 
@@ -26,7 +28,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         type=product.type,
         material=(product.material or "").strip(),
         spec=(product.spec or "").strip(),
-        quantity=0,
+        quantity=product.quantity or 0,
         location=(product.location or "").strip(),
         min_stock=product.min_stock,
         supplier_company_id=product.supplier_company_id
@@ -37,6 +39,87 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     db.refresh(db_product)
 
     return db_product
+
+
+@router.post("/import-parts")
+def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="파일이 없습니다")
+
+    content = file.file.read()
+    wb = openpyxl.load_workbook(BytesIO(content))
+    ws = wb.active
+
+    header = [cell.value for cell in ws[1]]
+    col = {name: idx for idx, name in enumerate(header)}
+
+    required = ["기존품번", "신품번", "품명", "규격", "재질", "재고수량", "최소재고", "보관위치", "발주처"]
+    for r in required:
+        if r not in col:
+            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
+
+    created = 0
+    updated = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        old_code = (row[col["기존품번"]] or "").strip()
+        new_code = (row[col["신품번"]] or "").strip()
+        name = (row[col["품명"]] or "").strip()
+        spec = (row[col["규격"]] or "").strip()
+        material = (row[col["재질"]] or "").strip()
+        quantity = int(row[col["재고수량"]] or 0)
+        min_stock = int(row[col["최소재고"]] or 0)
+        location = (row[col["보관위치"]] or "").strip()
+        supplier_name = (row[col["발주처"]] or "").strip()
+
+        if not new_code:
+            continue
+
+        supplier_id = None
+        if supplier_name:
+            company = db.query(models.Company).filter(
+                models.Company.name == supplier_name
+            ).first()
+            if not company:
+                company = models.Company(name=supplier_name, phone="", fax="", address="")
+                db.add(company)
+                db.commit()
+                db.refresh(company)
+            supplier_id = company.id
+
+        product = db.query(models.Product).filter(
+            models.Product.new_code == new_code
+        ).first()
+
+        if product:
+            product.old_code = old_code
+            product.name = name
+            product.type = "PART"
+            product.material = material
+            product.spec = spec
+            product.quantity = quantity
+            product.min_stock = min_stock
+            product.location = location
+            product.supplier_company_id = supplier_id
+            updated += 1
+        else:
+            db.add(models.Product(
+                old_code=old_code,
+                new_code=new_code,
+                name=name,
+                type="PART",
+                material=material,
+                spec=spec,
+                quantity=quantity,
+                min_stock=min_stock,
+                location=location,
+                supplier_company_id=supplier_id
+            ))
+            created += 1
+
+    db.commit()
+
+    return {"created": created, "updated": updated}
 
 
 @router.get("/")
