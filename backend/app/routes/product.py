@@ -62,15 +62,15 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     updated = 0
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = (row[col["기존품번"]] or "").strip()
-        new_code = (row[col["신품번"]] or "").strip()
-        name = (row[col["품명"]] or "").strip()
-        spec = (row[col["규격"]] or "").strip()
-        material = (row[col["재질"]] or "").strip()
+        old_code = str(row[col["기존품번"]] or "").strip()
+        new_code = str(row[col["신품번"]] or "").strip()
+        name = str(row[col["품명"]] or "").strip()
+        spec = str(row[col["규격"]] or "").strip()
+        material = str(row[col["재질"]] or "").strip()
         quantity = int(row[col["재고수량"]] or 0)
         min_stock = int(row[col["최소재고"]] or 0)
         location = (row[col["보관위치"]] or "").strip()
-        supplier_name = (row[col["발주처"]] or "").strip()
+        supplier_name = str(row[col["발주처"]] or "").strip()
 
         if not new_code:
             continue
@@ -143,13 +143,13 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
     updated = 0
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = (row[col["기존품번"]] or "").strip()
-        new_code = (row[col["신품번"]] or "").strip()
-        name = (row[col["품명"]] or "").strip()
-        spec = (row[col["규격"]] or "").strip()
-        material = (row[col["재질"]] or "").strip()
+        old_code = str(row[col["기존품번"]] or "").strip()
+        new_code = str(row[col["신품번"]] or "").strip()
+        name = str(row[col["품명"]] or "").strip()
+        spec = str(row[col["규격"]] or "").strip()
+        material = str(row[col["재질"]] or "").strip()
         bom_text = (row[col["BOM"]] or "").strip()
-        supplier_name = (row[col["발주처"]] or "").strip()
+        supplier_name = str(row[col["발주처"]] or "").strip()
 
         if not new_code:
             continue
