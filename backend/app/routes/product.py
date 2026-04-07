@@ -48,7 +48,6 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
-    ws = wb.active
 
     def normalize(value):
         return str(value or "").strip()
@@ -61,10 +60,42 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 return trimmed
         return raw
 
-    header = [normalize(cell.value) for cell in ws[1]]
-    col = {name: idx for idx, name in enumerate(header) if name}
-    if "구품번" in col and "기존품번" not in col:
-        col["기존품번"] = col["구품번"]
+    def build_header_map(values):
+        header_values = [normalize(v) for v in values]
+        mapping = {name: idx for idx, name in enumerate(header_values) if name}
+        if "구품번" in mapping and "기존품번" not in mapping:
+            mapping["기존품번"] = mapping["구품번"]
+        return header_values, mapping
+
+    ws = wb.active
+    header_row = 1
+    header, col = build_header_map([cell.value for cell in ws[1]])
+
+    if not col:
+        for name in wb.sheetnames:
+            candidate = wb[name]
+            if candidate.max_row < 2:
+                continue
+            candidate_header, candidate_col = build_header_map(
+                [cell.value for cell in candidate[1]]
+            )
+            if candidate_col:
+                ws = candidate
+                header = candidate_header
+                col = candidate_col
+                header_row = 1
+                break
+
+    if "신품번" not in col:
+        for row_idx in range(1, min(ws.max_row, 10) + 1):
+            candidate_header, candidate_col = build_header_map(
+                [cell.value for cell in ws[row_idx]]
+            )
+            if "신품번" in candidate_col:
+                header = candidate_header
+                col = candidate_col
+                header_row = row_idx
+                break
 
     required = ["기존품번", "신품번", "품명", "규격", "재질", "재고수량", "최소재고", "보관위치", "발주처"]
     for r in required:
@@ -74,8 +105,11 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     created = 0
     updated = 0
     skipped = 0
+    rows_total = 0
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        if row and any(value not in (None, "") for value in row):
+            rows_total += 1
         old_code = normalize_code(row[col["기존품번"]])
         new_code = normalize_code(row[col["신품번"]])
         name = normalize(row[col["품명"]])
@@ -134,7 +168,14 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     db.commit()
 
-    return {"created": created, "updated": updated, "skipped": skipped}
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "rows_total": rows_total,
+        "sheet": ws.title,
+        "header": header
+    }
 
 
 @router.post("/import-finished")
