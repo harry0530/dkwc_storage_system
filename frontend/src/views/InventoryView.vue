@@ -490,13 +490,19 @@ const uploadPartsExcel = async () => {
   if (!uploadFile.value) return;
   const form = new FormData();
   form.append("file", uploadFile.value);
-  await api.post("/products/import-parts", form, {
+  const res = await api.post("/products/import-parts", form, {
     headers: { "Content-Type": "multipart/form-data" }
   });
   uploadFile.value = null;
   await loadInventory();
   await loadProducts();
-  alert("엑셀 업로드 완료");
+  const created = Number(res?.data?.created || 0);
+  const updated = Number(res?.data?.updated || 0);
+  if (created + updated === 0) {
+    alert("업로드 완료(처리 0건) — 엑셀의 신품번/품명 값이 비어있는지 확인해줘.");
+    return;
+  }
+  alert(`엑셀 업로드 완료 (신규 ${created}건, 업데이트 ${updated}건)`);
 };
 </script>
 
