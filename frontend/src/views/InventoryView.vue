@@ -12,6 +12,7 @@ const searchCode = ref("");
 const searchNameInput = ref("");
 const showNameDropdown = ref(false);
 const typeFilter = ref("PART");
+const showAllPartsModal = ref(false);
 
 const code = ref("");
 const nameInput = ref("");
@@ -297,6 +298,19 @@ const filteredInventory = computed(() => {
       (nameKeyword && nameValue.includes(nameKeyword))
     );
   });
+});
+
+const allPartsSorted = computed(() => {
+  return inventory.value
+    .filter(
+      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    )
+    .slice()
+    .sort((a, b) =>
+      String(a.new_code || a.code || "").localeCompare(
+        String(b.new_code || b.code || "")
+      )
+    );
 });
 
 // =====================
@@ -669,6 +683,57 @@ const uploadPartsExcel = async () => {
         </div>
       </div>
 
+      <button
+        class="btn btn-secondary"
+        @click="showAllPartsModal = true"
+      >
+        전체 단품 목록
+      </button>
+
+      </div>
+    </div>
+
+    <!-- 전체 단품 모달 -->
+    <div v-if="showAllPartsModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="showAllPartsModal = false"></div>
+      <div class="relative bg-white w-[90vw] max-w-5xl max-h-[80vh] rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="font-semibold">전체 단품 목록 ({{ allPartsSorted.length }})</div>
+          <button class="btn btn-secondary" @click="showAllPartsModal = false">닫기</button>
+        </div>
+        <div class="p-3 overflow-auto max-h-[70vh]">
+          <table class="w-full text-left">
+            <thead class="table-head">
+              <tr>
+                <th class="p-2">신품번</th>
+                <th class="p-2">구품번</th>
+                <th class="p-2">품명</th>
+                <th class="p-2">재질</th>
+                <th class="p-2">규격</th>
+                <th class="p-2">재고</th>
+                <th class="p-2">최소재고</th>
+                <th class="p-2">보관위치</th>
+                <th class="p-2">발주처</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in allPartsSorted" :key="`modal-${item.new_code || item.code}`" class="border-t hover:bg-slate-50">
+                <td class="p-2 font-medium">{{ item.new_code || "-" }}</td>
+                <td class="p-2">{{ item.old_code || "-" }}</td>
+                <td class="p-2">{{ item.name || "-" }}</td>
+                <td class="p-2">{{ item.material || "-" }}</td>
+                <td class="p-2">{{ item.spec || "-" }}</td>
+                <td class="p-2">{{ item.quantity }}</td>
+                <td class="p-2">{{ item.min_stock }}</td>
+                <td class="p-2">{{ item.location || "-" }}</td>
+                <td class="p-2">{{ getCompanyName(item.supplier_company_id) }}</td>
+              </tr>
+              <tr v-if="allPartsSorted.length === 0">
+                <td colspan="9" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
