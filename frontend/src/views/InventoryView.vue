@@ -570,34 +570,6 @@ const uploadPartsExcel = async () => {
       <div class="panel-header">부품 검색</div>
       <div class="p-3 flex gap-2 items-center flex-wrap">
 
-      <div class="flex items-center gap-1">
-        <select v-model="searchPartFirst" class="input w-16">
-          <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
-            {{ n }}
-          </option>
-        </select>
-        <select v-model="searchPartTwo" class="input w-20">
-          <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
-            {{ String(n).padStart(2, '0') }}
-          </option>
-        </select>
-        <select v-model="searchPartMid" class="input w-16">
-          <option value="M">M</option>
-          <option value="S">S</option>
-        </select>
-        <select v-model="searchPartDigit" class="input w-16">
-          <option v-for="n in 10" :key="n" :value="String(n - 1)">
-            {{ n - 1 }}
-          </option>
-        </select>
-        <select v-model="searchPartLast" class="input w-16">
-          <option value="S">S</option>
-          <option value="E">E</option>
-          <option value="T">T</option>
-          <option value="K">K</option>
-        </select>
-      </div>
-
       <div class="relative w-48">
         <input v-model="searchCode"
           placeholder="구/신품번 검색"
