@@ -779,8 +779,8 @@ const uploadPartsExcel = async () => {
 
         <thead class="table-head">
           <tr>
-            <th class="p-3">신품번</th>
             <th class="p-3">구품번</th>
+            <th class="p-3">신품번</th>
             <th class="p-3">품명</th>
             <th class="p-3">재질</th>
             <th class="p-3">규격</th>
@@ -802,10 +802,10 @@ const uploadPartsExcel = async () => {
             <!-- ⭐ 클릭은 여기(td)에 걸어야 함 -->
             <td class="p-3 cursor-pointer"
                 @click="loadProductLogs(item.new_code || item.code)">
-              <div class="font-semibold">{{ item.new_code || "-" }}</div>
+              <div class="font-semibold">{{ item.old_code || "-" }}</div>
             </td>
 
-            <td class="p-3">{{ item.old_code || "-" }}</td>
+            <td class="p-3">{{ item.new_code || "-" }}</td>
 
             <td class="p-3">{{ item.name || "-" }}</td>
 
