@@ -532,6 +532,10 @@ const uploadPartsExcel = async () => {
       <div class="panel-header">단품 등록</div>
       <div class="p-3 grid grid-flow-col auto-cols-max gap-2 items-center overflow-x-auto">
 
+      <input v-model="oldCodeInput"
+        placeholder="구품번"
+        class="input w-32" />
+
       <div class="relative w-40">
         <input
           v-model="code"
@@ -554,10 +558,6 @@ const uploadPartsExcel = async () => {
           </div>
         </div>
       </div>
-
-      <input v-model="oldCodeInput"
-        placeholder="구품번"
-        class="input w-32" />
 
       <div class="relative w-48">
         <input
