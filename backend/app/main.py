@@ -25,6 +25,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def ensure_company_email_column():
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS email TEXT")
+            )
+    else:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE companies ADD COLUMN email TEXT"))
+        except Exception:
+            pass
+
+
 if os.getenv("RESET_DB") == "1":
     db_url = str(engine.url)
     if db_url.startswith("postgresql"):
@@ -34,6 +49,7 @@ if os.getenv("RESET_DB") == "1":
     else:
         Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
+ensure_company_email_column()
 
 protected = [Depends(verify_firebase_token)]
 

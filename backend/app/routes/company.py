@@ -19,6 +19,7 @@ def create_company(data: dict, db: Session = Depends(get_db)):
 
     company = models.Company(
         name=data["name"],
+        email=data.get("email", ""),
         phone=data.get("phone", ""),
         fax=data.get("fax", ""),
         address=data.get("address", "")
@@ -64,6 +65,7 @@ def update_company(company_id: int, data: dict, db: Session = Depends(get_db)):
         raise Exception("거래처 없음")
 
     company.name = data.get("name", company.name)
+    company.email = data.get("email", company.email)
     company.phone = data.get("phone", company.phone)
     company.fax = data.get("fax", company.fax)
     company.address = data.get("address", company.address)

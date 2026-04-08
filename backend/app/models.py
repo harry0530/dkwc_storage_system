@@ -8,6 +8,7 @@ class Company(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
+    email = Column(String)
     phone = Column(String)
     address = Column(String)
     fax = Column(String)

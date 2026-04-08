@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
+import os
+import smtplib
+from email.mime.text import MIMEText
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -165,3 +168,53 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "삭제 완료"}
+
+
+def send_email(to_email: str, subject: str, body: str):
+    host = os.getenv("SMTP_HOST", "")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    user = os.getenv("SMTP_USER", "")
+    password = os.getenv("SMTP_PASSWORD", "")
+    from_email = os.getenv("SMTP_FROM", user)
+    use_tls = os.getenv("SMTP_USE_TLS", "1") == "1"
+
+    if not host or not from_email:
+        raise RuntimeError("SMTP 설정이 없습니다.")
+
+    msg = MIMEText(body, _charset="utf-8")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    if use_tls:
+        with smtplib.SMTP(host, port) as server:
+            server.starttls()
+            if user and password:
+                server.login(user, password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port) as server:
+            if user and password:
+                server.login(user, password)
+            server.send_message(msg)
+
+
+@router.post("/quote-email")
+def send_quote_email(data: dict, db: Session = Depends(get_db)):
+    to_email = (data.get("to") or "").strip()
+    subject = (data.get("subject") or "").strip()
+    body = (data.get("body") or "").strip()
+
+    if not to_email:
+        raise HTTPException(status_code=400, detail="수신 이메일이 필요합니다.")
+    if not subject:
+        raise HTTPException(status_code=400, detail="제목이 필요합니다.")
+    if not body:
+        raise HTTPException(status_code=400, detail="본문이 필요합니다.")
+
+    try:
+        send_email(to_email, subject, body)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {"message": "메일 전송 완료"}

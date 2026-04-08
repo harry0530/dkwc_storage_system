@@ -7,6 +7,7 @@ const employeesByCompany = ref({});
 const expandedCompanyId = ref("");
 
 const name = ref("");
+const email = ref("");
 const phone = ref("");
 const fax = ref("");        // ⭐ 추가
 const address = ref("");
@@ -15,6 +16,7 @@ const companySearch = ref("");
 // 수정
 const editingCompanyId = ref("");
 const editName = ref("");
+const editEmail = ref("");
 const editPhone = ref("");
 const editFax = ref("");
 const editAddress = ref("");
@@ -43,12 +45,14 @@ const createCompany = async () => {
 
   await api.post("/companies/", {
     name: name.value,
+    email: email.value,
     phone: phone.value,
     fax: fax.value,
     address: address.value
   });
 
   name.value = "";
+  email.value = "";
   phone.value = "";
   fax.value = "";
   address.value = "";
@@ -61,6 +65,7 @@ const filteredCompanies = computed(() => {
   if (!keyword) return companies.value;
   return companies.value.filter((c) =>
     (c.name || "").toLowerCase().includes(keyword) ||
+    (c.email || "").toLowerCase().includes(keyword) ||
     (c.phone || "").toLowerCase().includes(keyword) ||
     (c.fax || "").toLowerCase().includes(keyword) ||
     (c.address || "").toLowerCase().includes(keyword)
@@ -70,6 +75,7 @@ const filteredCompanies = computed(() => {
 const startEditCompany = (c) => {
   editingCompanyId.value = String(c.id);
   editName.value = c.name || "";
+  editEmail.value = c.email || "";
   editPhone.value = c.phone || "";
   editFax.value = c.fax || "";
   editAddress.value = c.address || "";
@@ -78,6 +84,7 @@ const startEditCompany = (c) => {
 const cancelEditCompany = () => {
   editingCompanyId.value = "";
   editName.value = "";
+  editEmail.value = "";
   editPhone.value = "";
   editFax.value = "";
   editAddress.value = "";
@@ -86,6 +93,7 @@ const cancelEditCompany = () => {
 const saveEditCompany = async (id) => {
   await api.put(`/companies/${id}`, {
     name: editName.value,
+    email: editEmail.value,
     phone: editPhone.value,
     fax: editFax.value,
     address: editAddress.value
@@ -146,6 +154,9 @@ onMounted(loadCompanies);
       <input v-model="name" placeholder="회사명"
         class="input w-40" />
 
+      <input v-model="email" placeholder="이메일"
+        class="input w-48" />
+
       <input v-model="phone" placeholder="전화번호"
         class="input w-40" />
 
@@ -166,7 +177,7 @@ onMounted(loadCompanies);
       <div class="p-3 border-b bg-slate-50">
         <input
           v-model="companySearch"
-          placeholder="회사명/전화번호/팩스/주소 검색"
+          placeholder="회사명/이메일/전화번호/팩스/주소 검색"
           class="input w-72"
         />
       </div>
@@ -176,6 +187,7 @@ onMounted(loadCompanies);
         <thead class="table-head">
           <tr>
             <th class="p-3">회사명</th>
+            <th class="p-3">이메일</th>
             <th class="p-3">전화번호</th>
             <th class="p-3">팩스</th>
             <th class="p-3">주소</th>
@@ -190,6 +202,9 @@ onMounted(loadCompanies);
             <template v-if="editingCompanyId === String(c.id)">
               <td class="p-3">
                 <input v-model="editName" class="input w-32 h-8" />
+              </td>
+              <td class="p-3">
+                <input v-model="editEmail" class="input w-40 h-8" />
               </td>
               <td class="p-3">
                 <input v-model="editPhone" class="input w-32 h-8" />
@@ -218,6 +233,7 @@ onMounted(loadCompanies);
                 @click="toggleEmployees(c.id)">
                 {{ c.name }}
               </td>
+              <td class="p-3">{{ c.email }}</td>
               <td class="p-3">{{ c.phone }}</td>
               <td class="p-3">{{ c.fax }}</td>
               <td class="p-3">{{ c.address }}</td>
@@ -237,7 +253,7 @@ onMounted(loadCompanies);
 
             </tr>
             <tr v-if="expandedCompanyId === String(c.id)" class="border-t bg-slate-50/70">
-              <td colspan="5" class="p-3">
+              <td colspan="6" class="p-3">
                 <div class="flex items-center gap-2 flex-wrap mb-3">
                   <input v-model="empDepartment" placeholder="부서"
                     class="input w-32" />

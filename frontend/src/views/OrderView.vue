@@ -21,6 +21,12 @@ const displayProduct = ref("");
 const stockWarning = ref("");
 const showCompleted = ref(false);
 
+// 견적 이메일
+const showQuoteModal = ref(false);
+const quoteTo = ref("");
+const quoteSubject = ref("");
+const quoteBody = ref("");
+
 // ⭐ 공통 문자열 정리 함수 (핵심)
 const clean = (v) => (v || "").trim().toLowerCase();
 
@@ -132,10 +138,14 @@ const filteredCompanies = computed(() =>
 );
 
 const selectCompany = (name) => {
-  selectedCompany.value = name;
-  companyInput.value = name;
+  selectedCompany.value = name.name || name;
+  companyInput.value = name.name || name;
   showCompanyDropdown.value = false;
 
+  const match = companies.value.find((c) => c.name === companyInput.value);
+  if (match?.email) {
+    quoteTo.value = match.email;
+  }
   updateProductName();
 };
 
@@ -208,6 +218,54 @@ const createOrder = async () => {
   loadAll();
 };
 
+const buildQuoteBody = () => {
+  const companyName = selectedCompany.value || companyInput.value || "";
+  const productLabel = displayProduct.value || (selectedCode.value || codeInput.value || "");
+  const qty = quantity.value || "";
+  return [
+    `안녕하세요 ${companyName} 담당자님,`,
+    "",
+    "아래와 같이 견적드립니다.",
+    `- 품목: ${productLabel}`,
+    `- 수량: ${qty || "-"}`,
+    "",
+    "검토 부탁드립니다.",
+    "",
+    "감사합니다."
+  ].join("\n");
+};
+
+const openQuoteModal = () => {
+  showQuoteModal.value = true;
+  const match = companies.value.find((c) => c.name === (selectedCompany.value || companyInput.value));
+  if (!quoteTo.value) quoteTo.value = match?.email || "";
+  if (!quoteSubject.value) {
+    const base = displayProduct.value || (selectedCode.value || codeInput.value || "");
+    quoteSubject.value = base ? `견적서 - ${base}` : "견적서";
+  }
+  if (!quoteBody.value) {
+    quoteBody.value = buildQuoteBody();
+  }
+};
+
+const fillQuoteBody = () => {
+  quoteBody.value = buildQuoteBody();
+};
+
+const sendQuoteEmail = async () => {
+  if (!quoteTo.value.trim()) return alert("받는 이메일을 입력하세요.");
+  if (!quoteSubject.value.trim()) return alert("제목을 입력하세요.");
+  if (!quoteBody.value.trim()) return alert("본문을 입력하세요.");
+
+  await api.post("/orders/quote-email", {
+    to: quoteTo.value,
+    subject: quoteSubject.value,
+    body: quoteBody.value
+  });
+  alert("메일 전송 완료");
+  showQuoteModal.value = false;
+};
+
 // =====================
 // 생산 / 취소
 // =====================
@@ -271,7 +329,7 @@ const deleteOrder = async (id) => {
           class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="c in filteredCompanies"
             :key="c.id"
-            @click="selectCompany(c.name)"
+            @click="selectCompany(c)"
             class="p-2 hover:bg-slate-100 cursor-pointer">
             {{ c.name }}
           </div>
@@ -312,6 +370,10 @@ const deleteOrder = async (id) => {
       <button @click="createOrder"
         class="btn btn-primary">
         주문 생성
+      </button>
+      <button @click="openQuoteModal"
+        class="btn btn-secondary">
+        견적서 이메일
       </button>
 
     </div>
@@ -379,6 +441,37 @@ const deleteOrder = async (id) => {
         </tbody>
 
       </table>
+    </div>
+
+    <!-- 견적서 이메일 모달 -->
+    <div v-if="showQuoteModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="showQuoteModal = false"></div>
+      <div class="relative bg-white w-[90vw] max-w-2xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="font-semibold">견적서 이메일</div>
+          <button class="btn btn-secondary" @click="showQuoteModal = false">닫기</button>
+        </div>
+        <div class="p-4 flex flex-col gap-3">
+          <input v-model="quoteTo" placeholder="받는 이메일"
+            class="input w-full" />
+          <input v-model="quoteSubject" placeholder="제목"
+            class="input w-full" />
+          <textarea v-model="quoteBody" rows="10"
+            class="input w-full h-auto"
+            placeholder="내용을 입력하세요"></textarea>
+          <div class="flex gap-2">
+            <button @click="fillQuoteBody" class="btn btn-secondary">
+              견적서 자동 작성
+            </button>
+            <button @click="sendQuoteEmail" class="btn btn-primary">
+              이메일 발송
+            </button>
+          </div>
+          <div class="text-xs text-slate-500">
+            SMTP 설정이 서버에 필요합니다.
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
