@@ -13,6 +13,8 @@ const searchNameInput = ref("");
 const showNameDropdown = ref(false);
 const typeFilter = ref("PART");
 const showAllPartsModal = ref(false);
+const showPartsManageModal = ref(false);
+const partsModalTab = ref("register");
 
 // 입고
 const stockInCode = ref("");
@@ -502,6 +504,11 @@ const deferHide = (fn) => {
   window.setTimeout(fn, 200);
 };
 
+const openPartsModal = (tab) => {
+  partsModalTab.value = tab;
+  showPartsManageModal.value = true;
+};
+
 
 const filteredAddNameSuggestions = computed(() => {
   const keyword = (nameInput.value || "").trim().toLowerCase();
@@ -653,6 +660,18 @@ const refreshUpload = async () => {
       <h2 class="page-title">📦 단품 관리</h2>
       <div class="flex gap-2 items-center">
         <button
+          @click="openPartsModal('register')"
+          class="btn btn-secondary"
+        >
+          단품 등록
+        </button>
+        <button
+          @click="openPartsModal('upload')"
+          class="btn btn-secondary"
+        >
+          엑셀 업로드
+        </button>
+        <button
           @click="saveInventoryPdf"
           class="btn btn-info"
         >
@@ -664,6 +683,153 @@ const refreshUpload = async () => {
         >
           재고 엑셀 저장
         </button>
+      </div>
+    </div>
+
+    <!-- 단품 관리 모달 -->
+    <div v-if="showPartsManageModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="showPartsManageModal = false"></div>
+      <div class="relative bg-white w-[90vw] max-w-5xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="flex items-center gap-2">
+            <button
+              @click="partsModalTab = 'register'"
+              :class="partsModalTab === 'register' ? 'btn btn-primary' : 'btn btn-secondary'"
+            >
+              단품 등록
+            </button>
+            <button
+              @click="partsModalTab = 'upload'"
+              :class="partsModalTab === 'upload' ? 'btn btn-primary' : 'btn btn-secondary'"
+            >
+              엑셀 업로드
+            </button>
+          </div>
+          <button class="btn btn-secondary" @click="showPartsManageModal = false">닫기</button>
+        </div>
+        <div class="p-4 overflow-auto max-h-[75vh]">
+          <div v-if="partsModalTab === 'register'">
+            <div class="panel">
+              <div class="panel-header">단품 등록</div>
+              <div class="p-3 flex flex-col gap-2">
+                <div class="flex gap-2 items-center flex-wrap">
+                  <input v-model="oldCodeInput"
+                    placeholder="구품번"
+                    class="input w-32" />
+
+                  <div class="relative w-40">
+                    <input
+                      v-model="code"
+                      @focus="showAddCodeDropdown = true"
+                      @blur="deferHide(() => showAddCodeDropdown = false)"
+                      placeholder="신품번"
+                      class="input w-full"
+                    />
+                    <div
+                      v-if="showAddCodeDropdown && filteredAddCodeSuggestions.length"
+                      class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+                    >
+                      <div
+                        v-for="item in filteredAddCodeSuggestions"
+                        :key="`add-code-${item.code}`"
+                        @click="selectAddCodeSuggestion(item.code)"
+                        class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                      >
+                        {{ item.code }} ({{ item.name }})
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="relative w-56">
+                    <input
+                      v-model="nameInput"
+                      @focus="showAddNameDropdown = true"
+                      @blur="deferHide(() => showAddNameDropdown = false)"
+                      placeholder="품명"
+                      class="input w-full"
+                    />
+                    <div
+                      v-if="showAddNameDropdown && filteredAddNameSuggestions.length"
+                      class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+                    >
+                      <div
+                        v-for="item in filteredAddNameSuggestions"
+                        :key="`add-name-${item.code}`"
+                        @click="selectAddNameSuggestion(item.name)"
+                        class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                      >
+                        {{ item.name }} ({{ item.code }})
+                      </div>
+                    </div>
+                  </div>
+
+                  <input v-model="quantity"
+                    type="number"
+                    placeholder="재고수량"
+                    class="input w-24" />
+
+                  <button @click="addStock"
+                    class="btn btn-primary">
+                    등록
+                  </button>
+                </div>
+
+                <div class="flex gap-2 items-center flex-wrap">
+                  <input v-model="materialInput"
+                    placeholder="재질"
+                    class="input w-32" />
+
+                  <input v-model="specInput"
+                    placeholder="규격"
+                    class="input w-32" />
+
+                  <input v-model="minStockInput"
+                    type="number"
+                    placeholder="최소재고"
+                    class="input w-24" />
+
+                  <input v-model="locationInput"
+                    placeholder="보관위치"
+                    class="input w-28" />
+
+                  <div class="relative w-48">
+                    <input
+                      v-model="supplierInput"
+                      @focus="showSupplierDropdown = true"
+                      @blur="deferHide(() => showSupplierDropdown = false)"
+                      placeholder="발주처"
+                      class="input w-full"
+                    />
+                    <div
+                      v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
+                      class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+                    >
+                      <div
+                        v-for="c in filteredSupplierSuggestions"
+                        :key="`supplier-${c.id}`"
+                        @click="selectSupplierSuggestion(c)"
+                        class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                      >
+                        {{ c.name }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else>
+            <div class="panel">
+              <div class="panel-header">엑셀 업로드</div>
+              <div class="p-3 flex gap-2 items-center flex-wrap">
+                <input ref="uploadInputRef" type="file" @change="onFileChange" class="input w-72" />
+                <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
+                <button @click="refreshUpload" class="btn btn-secondary">새로고침</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -733,126 +899,6 @@ const refreshUpload = async () => {
         <button @click="stockIn" class="btn btn-primary">
           입고
         </button>
-      </div>
-    </div>
-
-    <!-- 입고 -->
-    <div class="panel mb-4">
-      <div class="panel-header">단품 등록</div>
-      <div class="p-3 flex flex-col gap-2">
-
-      <div class="flex gap-2 items-center flex-wrap">
-        <input v-model="oldCodeInput"
-          placeholder="구품번"
-          class="input w-32" />
-
-        <div class="relative w-40">
-          <input
-            v-model="code"
-            @focus="showAddCodeDropdown = true"
-            @blur="deferHide(() => showAddCodeDropdown = false)"
-            placeholder="신품번"
-            class="input w-full"
-          />
-          <div
-            v-if="showAddCodeDropdown && filteredAddCodeSuggestions.length"
-            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-          >
-            <div
-              v-for="item in filteredAddCodeSuggestions"
-              :key="`add-code-${item.code}`"
-              @click="selectAddCodeSuggestion(item.code)"
-              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-            >
-              {{ item.code }} ({{ item.name }})
-            </div>
-          </div>
-        </div>
-
-        <div class="relative w-56">
-          <input
-            v-model="nameInput"
-            @focus="showAddNameDropdown = true"
-            @blur="deferHide(() => showAddNameDropdown = false)"
-            placeholder="품명"
-            class="input w-full"
-          />
-          <div
-            v-if="showAddNameDropdown && filteredAddNameSuggestions.length"
-            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-          >
-            <div
-              v-for="item in filteredAddNameSuggestions"
-              :key="`add-name-${item.code}`"
-              @click="selectAddNameSuggestion(item.name)"
-              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-            >
-              {{ item.name }} ({{ item.code }})
-            </div>
-          </div>
-        </div>
-
-        <input v-model="quantity"
-          type="number"
-          placeholder="재고수량"
-          class="input w-24" />
-
-        <button @click="addStock"
-          class="btn btn-primary">
-          등록
-        </button>
-      </div>
-
-      <div class="flex gap-2 items-center flex-wrap">
-        <input v-model="materialInput"
-          placeholder="재질"
-          class="input w-32" />
-
-        <input v-model="specInput"
-          placeholder="규격"
-          class="input w-32" />
-
-        <input v-model="minStockInput"
-          type="number"
-          placeholder="최소재고"
-          class="input w-24" />
-
-        <input v-model="locationInput"
-          placeholder="보관위치"
-          class="input w-28" />
-
-        <div class="relative w-48">
-          <input
-            v-model="supplierInput"
-            @focus="showSupplierDropdown = true"
-            @blur="deferHide(() => showSupplierDropdown = false)"
-            placeholder="발주처"
-            class="input w-full"
-          />
-          <div
-            v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
-            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
-          >
-            <div
-              v-for="c in filteredSupplierSuggestions"
-              :key="`supplier-${c.id}`"
-              @click="selectSupplierSuggestion(c)"
-              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-            >
-              {{ c.name }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
-
-    <div class="panel mb-4">
-      <div class="panel-header">엑셀 업로드</div>
-      <div class="p-3 flex gap-2 items-center flex-wrap">
-        <input ref="uploadInputRef" type="file" @change="onFileChange" class="input w-72" />
-        <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
-        <button @click="refreshUpload" class="btn btn-secondary">새로고침</button>
       </div>
     </div>
 
