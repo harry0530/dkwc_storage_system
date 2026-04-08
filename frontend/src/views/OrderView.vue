@@ -3,10 +3,13 @@ import { ref, onMounted, computed } from "vue";
 import api from "../api";
 
 const orders = ref([]);
+const purchaseOrders = ref([]);
 const products = ref([]);
 const companies = ref([]);
 const boms = ref([]);
 const inventory = ref([]);
+
+const activeTab = ref("incoming");
 
 const companyInput = ref("");
 const selectedCompany = ref("");
@@ -16,10 +19,18 @@ const selectedCode = ref("");
 
 const quantity = ref("");
 
+const purchaseCompanyInput = ref("");
+const purchaseSelectedCompany = ref("");
+const purchaseCodeInput = ref("");
+const purchaseSelectedCode = ref("");
+const purchaseQuantity = ref("");
+
 // 표시
 const displayProduct = ref("");
 const stockWarning = ref("");
 const showCompleted = ref(false);
+const purchaseDisplayProduct = ref("");
+const showPurchaseCompleted = ref(false);
 
 // 견적 이메일
 const showQuoteModal = ref(false);
@@ -30,17 +41,73 @@ const quoteBody = ref("");
 // ⭐ 공통 문자열 정리 함수 (핵심)
 const clean = (v) => (v || "").trim().toLowerCase();
 
+const resolveProduct = (inputCode) => {
+  const raw = (inputCode || "").trim();
+  if (!raw) return null;
+
+  const cleanInput = clean(raw);
+  const productByNew = products.value.find(p =>
+    clean(p.code) === cleanInput
+  );
+  const productByOld = products.value.find(p =>
+    clean(p.old_code) === cleanInput
+  );
+
+  let realCode = raw;
+  let fromOld = false;
+  if (productByNew) {
+    realCode = productByNew.code;
+  } else if (productByOld) {
+    realCode = productByOld.code;
+    fromOld = true;
+  }
+
+  const product = products.value.find(p =>
+    clean(p.code) === clean(realCode)
+  );
+
+  if (!product) return null;
+
+  return { product, realCode, fromOld, inputCode: raw };
+};
+
+const buildCodeOptions = (keyword) => {
+  const list = [];
+  const key = (keyword || "").trim().toLowerCase();
+
+  for (const p of products.value) {
+    if (p.code && (!key || p.code.toLowerCase().includes(key))) {
+      list.push({
+        key: `new-${p.code}`,
+        code: p.code,
+        label: `${p.code} (신품번)`
+      });
+    }
+    if (p.old_code && (!key || p.old_code.toLowerCase().includes(key))) {
+      list.push({
+        key: `old-${p.old_code}`,
+        code: p.old_code,
+        label: `${p.old_code} (구품번)`
+      });
+    }
+  }
+
+  return list;
+};
+
 // =====================
 // 데이터 로드
 // =====================
 const loadAll = async () => {
   const o = await api.get("/orders/");
+  const po = await api.get("/purchase-orders/");
   const p = await api.get("/products/");
   const c = await api.get("/companies/");
   const b = await api.get("/bom/");
   const i = await api.get("/inventory/");
 
   orders.value = o.data;
+  purchaseOrders.value = po.data;
   products.value = p.data.map((item) => ({
     ...item,
     code: item.new_code || item.code || "",
@@ -63,36 +130,15 @@ const updateProductName = () => {
     return;
   }
 
-  const cleanInput = clean(inputCode);
-
-  const productByNew = products.value.find(p =>
-    clean(p.code) === cleanInput
-  );
-  const productByOld = products.value.find(p =>
-    clean(p.old_code) === cleanInput
-  );
-
-  let realCode = inputCode;
-  let fromOld = false;
-  if (productByNew) {
-    realCode = productByNew.code;
-  } else if (productByOld) {
-    realCode = productByOld.code;
-    fromOld = true;
-  }
-
-  const cleanReal = clean(realCode);
-
-  // ⭐ 제품 찾기
-  const product = products.value.find(p =>
-    clean(p.code) === cleanReal
-  );
-
-  if (!product) {
+  const result = resolveProduct(inputCode);
+  if (!result) {
     displayProduct.value = "❌ 없는 제품";
     stockWarning.value = "";
     return;
   }
+
+  const { product, realCode, fromOld } = result;
+  const cleanReal = clean(realCode);
 
   // 표시
   displayProduct.value = fromOld
@@ -126,6 +172,27 @@ const updateProductName = () => {
   stockWarning.value = warnings.join(" | ");
 };
 
+const updatePurchaseDisplay = () => {
+  const inputCode = purchaseSelectedCode.value || purchaseCodeInput.value;
+
+  if (!inputCode) {
+    purchaseDisplayProduct.value = "";
+    return;
+  }
+
+  const result = resolveProduct(inputCode);
+  if (!result) {
+    purchaseDisplayProduct.value = "❌ 없는 제품";
+    return;
+  }
+
+  const { product, realCode, fromOld } = result;
+
+  purchaseDisplayProduct.value = fromOld
+    ? `${inputCode} → ${realCode} (${product.name})`
+    : `${realCode} (${product.name})`;
+};
+
 // =====================
 // 회사 자동완성
 // =====================
@@ -134,6 +201,14 @@ const showCompanyDropdown = ref(false);
 const filteredCompanies = computed(() =>
   companies.value.filter(c =>
     c.name.includes(companyInput.value)
+  )
+);
+
+const showPurchaseCompanyDropdown = ref(false);
+
+const filteredPurchaseCompanies = computed(() =>
+  companies.value.filter(c =>
+    c.name.includes(purchaseCompanyInput.value)
   )
 );
 
@@ -149,34 +224,22 @@ const selectCompany = (name) => {
   updateProductName();
 };
 
+const selectPurchaseCompany = (name) => {
+  purchaseSelectedCompany.value = name.name || name;
+  purchaseCompanyInput.value = name.name || name;
+  showPurchaseCompanyDropdown.value = false;
+  updatePurchaseDisplay();
+};
+
 // =====================
 // 품번 자동완성
 // =====================
 const showCodeDropdown = ref(false);
 
-const filteredCodes = computed(() => {
-  const keyword = (codeInput.value || "").trim().toLowerCase();
-  const list = [];
+const filteredCodes = computed(() => buildCodeOptions(codeInput.value));
 
-  for (const p of products.value) {
-    if (p.code && (!keyword || p.code.toLowerCase().includes(keyword))) {
-      list.push({
-        key: `new-${p.code}`,
-        code: p.code,
-        label: `${p.code} (신품번)`
-      });
-    }
-    if (p.old_code && (!keyword || p.old_code.toLowerCase().includes(keyword))) {
-      list.push({
-        key: `old-${p.old_code}`,
-        code: p.old_code,
-        label: `${p.old_code} (구품번)`
-      });
-    }
-  }
-
-  return list;
-});
+const showPurchaseCodeDropdown = ref(false);
+const filteredPurchaseCodes = computed(() => buildCodeOptions(purchaseCodeInput.value));
 
 const selectCode = (code) => {
   selectedCode.value = code;
@@ -184,6 +247,13 @@ const selectCode = (code) => {
   showCodeDropdown.value = false;
 
   updateProductName();
+};
+
+const selectPurchaseCode = (code) => {
+  purchaseSelectedCode.value = code;
+  purchaseCodeInput.value = code;
+  showPurchaseCodeDropdown.value = false;
+  updatePurchaseDisplay();
 };
 
 // =====================
@@ -214,6 +284,31 @@ const createOrder = async () => {
   displayProduct.value = "";
   stockWarning.value = "";
   quantity.value = "";
+
+  loadAll();
+};
+
+// =====================
+// 발주 생성
+// =====================
+const createPurchaseOrder = async () => {
+  if (!purchaseSelectedCompany.value || !purchaseQuantity.value) return;
+
+  const finalCode = purchaseSelectedCode.value || purchaseCodeInput.value;
+  if (!finalCode) return alert("품번 입력");
+
+  await api.post("/purchase-orders/", {
+    product_code: finalCode,
+    quantity: Number(purchaseQuantity.value),
+    company: purchaseSelectedCompany.value
+  });
+
+  purchaseCompanyInput.value = "";
+  purchaseCodeInput.value = "";
+  purchaseSelectedCode.value = "";
+  purchaseSelectedCompany.value = "";
+  purchaseQuantity.value = "";
+  purchaseDisplayProduct.value = "";
 
   loadAll();
 };
@@ -279,6 +374,16 @@ const undoProduction = async (id) => {
   loadAll();
 };
 
+const completePurchase = async (id) => {
+  await api.post(`/purchase-orders/complete/${id}`);
+  loadAll();
+};
+
+const undoPurchase = async (id) => {
+  await api.post(`/purchase-orders/undo/${id}`);
+  loadAll();
+};
+
 onMounted(loadAll);
 
 const pendingOrders = computed(() =>
@@ -293,10 +398,29 @@ const visibleOrders = computed(() =>
   showCompleted.value ? completedOrders.value : pendingOrders.value
 );
 
+const pendingPurchaseOrders = computed(() =>
+  purchaseOrders.value.filter((o) => o.status === "WAIT")
+);
+
+const completedPurchaseOrders = computed(() =>
+  purchaseOrders.value.filter((o) => o.status === "DONE")
+);
+
+const visiblePurchaseOrders = computed(() =>
+  showPurchaseCompleted.value ? completedPurchaseOrders.value : pendingPurchaseOrders.value
+);
+
 const deleteOrder = async (id) => {
   const ok = window.confirm("주문을 삭제(거부)할까요?");
   if (!ok) return;
   await api.delete(`/orders/${id}`);
+  loadAll();
+};
+
+const deletePurchaseOrder = async (id) => {
+  const ok = window.confirm("발주를 삭제할까요?");
+  if (!ok) return;
+  await api.delete(`/purchase-orders/${id}`);
   loadAll();
 };
 </script>
@@ -304,15 +428,34 @@ const deleteOrder = async (id) => {
 <template>
   <div>
 
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="page-title">📋 주문 관리</h2>
+    <div class="flex items-center gap-2 mb-6">
       <button
-        @click="showCompleted = !showCompleted"
-        class="btn btn-secondary"
+        class="btn"
+        :class="activeTab === 'incoming' ? 'btn-primary' : 'btn-secondary'"
+        @click="activeTab = 'incoming'"
       >
-        {{ showCompleted ? "대기목록 보기" : "완료내역 보기" }}
+        들어온 주문
+      </button>
+      <button
+        class="btn"
+        :class="activeTab === 'purchase' ? 'btn-primary' : 'btn-secondary'"
+        @click="activeTab = 'purchase'"
+      >
+        발주
       </button>
     </div>
+
+    <div v-if="activeTab === 'incoming'">
+
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="page-title">📋 주문 관리</h2>
+        <button
+          @click="showCompleted = !showCompleted"
+          class="btn btn-secondary"
+        >
+          {{ showCompleted ? "대기목록 보기" : "완료내역 보기" }}
+        </button>
+      </div>
 
     <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap">
 
@@ -472,6 +615,142 @@ const deleteOrder = async (id) => {
           </div>
         </div>
       </div>
+    </div>
+
+    </div>
+
+    <div v-else>
+
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="page-title">📦 발주 관리</h2>
+        <button
+          @click="showPurchaseCompleted = !showPurchaseCompleted"
+          class="btn btn-secondary"
+        >
+          {{ showPurchaseCompleted ? "대기목록 보기" : "완료내역 보기" }}
+        </button>
+      </div>
+
+      <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap">
+
+        <div class="relative w-40">
+          <input
+            v-model="purchaseCompanyInput"
+            @input="updatePurchaseDisplay"
+            @focus="showPurchaseCompanyDropdown = true"
+            @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
+            placeholder="납품처"
+            class="input w-full"
+          />
+          <div v-if="showPurchaseCompanyDropdown"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+            <div v-for="c in filteredPurchaseCompanies"
+              :key="c.id"
+              @click="selectPurchaseCompany(c)"
+              class="p-2 hover:bg-slate-100 cursor-pointer">
+              {{ c.name }}
+            </div>
+          </div>
+        </div>
+
+        <div class="relative w-40">
+          <input
+            v-model="purchaseCodeInput"
+            @input="updatePurchaseDisplay"
+            @focus="showPurchaseCodeDropdown = true"
+            @blur="setTimeout(() => showPurchaseCodeDropdown = false, 200)"
+            placeholder="품번"
+            class="input w-full"
+          />
+          <div v-if="showPurchaseCodeDropdown"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+            <div v-for="a in filteredPurchaseCodes"
+              :key="a.key"
+              @click="selectPurchaseCode(a.code)"
+              class="p-2 hover:bg-slate-100 cursor-pointer">
+              {{ a.label }}
+            </div>
+          </div>
+        </div>
+
+        <div class="text-sm text-gray-700 w-64">
+          {{ purchaseDisplayProduct }}
+        </div>
+
+        <input v-model="purchaseQuantity"
+          @input="updatePurchaseDisplay"
+          type="number"
+          min="1"
+          placeholder="수량"
+          class="input w-24" />
+
+        <button @click="createPurchaseOrder"
+          class="btn btn-primary">
+          발주 등록
+        </button>
+
+      </div>
+
+      <div class="panel overflow-hidden">
+        <table class="w-full text-left">
+
+          <thead class="table-head">
+            <tr>
+              <th class="p-3">ID</th>
+              <th class="p-3">제품</th>
+              <th class="p-3">수량</th>
+              <th class="p-3">납품처</th>
+              <th class="p-3">상태</th>
+              <th class="p-3">작업</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="o in visiblePurchaseOrders" :key="o.id" class="border-t">
+
+              <td class="p-3">{{ o.id }}</td>
+
+              <td class="p-3">
+                {{ o.product_name }}
+                <div class="text-xs text-gray-400">
+                  {{ o.product_code }}
+                </div>
+              </td>
+
+              <td class="p-3">{{ o.quantity }}</td>
+              <td class="p-3">{{ o.company }}</td>
+
+              <td class="p-3">
+                <span v-if="o.status === 'WAIT'">대기</span>
+                <span v-else>완료</span>
+              </td>
+
+              <td class="p-3 flex gap-2">
+                <button v-if="o.status === 'WAIT'"
+                  @click="completePurchase(o.id)"
+                  class="btn btn-success h-8 px-2 text-xs">
+                  완료
+                </button>
+
+                <button v-if="o.status === 'WAIT'"
+                  @click="deletePurchaseOrder(o.id)"
+                  class="btn btn-danger h-8 px-2 text-xs">
+                  삭제
+                </button>
+
+                <button v-if="o.status === 'DONE'"
+                  @click="undoPurchase(o.id)"
+                  class="btn btn-secondary h-8 px-2 text-xs">
+                  취소
+                </button>
+              </td>
+
+            </tr>
+          </tbody>
+
+        </table>
+      </div>
+
     </div>
 
   </div>

@@ -5,6 +5,7 @@ from sqlalchemy import text
 import os
 
 from app.routes import product, bom, inventory, transaction, order
+from app.routes import purchase_order
 import app.routes.company as company
 from app.routes import log
 from app.firebase_auth import verify_firebase_token
@@ -58,6 +59,7 @@ app.include_router(bom.router, dependencies=protected)
 app.include_router(inventory.router, dependencies=protected)
 app.include_router(transaction.router, dependencies=protected)
 app.include_router(order.router, dependencies=protected)
+app.include_router(purchase_order.router, dependencies=protected)
 app.include_router(company.router, dependencies=protected)
 app.include_router(log.router, dependencies=protected)
 

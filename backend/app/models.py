@@ -59,6 +59,17 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+
+    id = Column(Integer, primary_key=True)
+    product_code = Column(String)
+    quantity = Column(Integer)
+    company = Column(String)
+    status = Column(String, default="WAIT")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
 

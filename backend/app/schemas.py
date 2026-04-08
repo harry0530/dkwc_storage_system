@@ -30,3 +30,9 @@ class OrderCreate(BaseModel):
     product_code: str
     quantity: int
     company: str
+
+
+class PurchaseOrderCreate(BaseModel):
+    product_code: str
+    quantity: int
+    company: str
