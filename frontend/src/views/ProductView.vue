@@ -8,13 +8,16 @@ const companies = ref([]);
 
 // 제품 입력
 const code = ref("");
+const oldCodeInput = ref("");
 const name = ref("");
-const type = ref("PART");
-const location = ref("");
-const min_stock = ref("");
+const materialInput = ref("");
+const specInput = ref("");
+const type = ref("FINISHED");
 
 // 발주처 선택
 const supplierCompanyId = ref("");
+const supplierInput = ref("");
+const showSupplierDropdown = ref(false);
 
 // BOM 입력 상태
 const bomInput = ref({});
@@ -61,19 +64,39 @@ const createProduct = async () => {
   const nameValue = (name.value || "").trim();
   if (!codeValue) return alert("품번 입력");
 
+  let supplierId = supplierCompanyId.value
+    ? Number(supplierCompanyId.value)
+    : null;
+  if (!supplierId && supplierInput.value.trim()) {
+    const match = companies.value.find(
+      (c) => (c.name || "").trim().toLowerCase() === supplierInput.value.trim().toLowerCase()
+    );
+    if (match) {
+      supplierId = match.id;
+    } else {
+      const created = await api.post("/companies/", {
+        name: supplierInput.value.trim(),
+        phone: "",
+        fax: "",
+        address: "",
+        email: ""
+      });
+      supplierId = created?.data?.id || null;
+      await loadData();
+    }
+  }
+
   try {
     await api.post("/products/", {
       code: codeValue,
       name: nameValue,
       type: type.value,
-      location: (location.value || "").trim(),
-      min_stock: Number(min_stock.value),
-      old_code: "",
-      material: "",
-      spec: "",
-      supplier_company_id: supplierCompanyId.value
-        ? Number(supplierCompanyId.value)
-        : null
+      location: "",
+      min_stock: 0,
+      old_code: oldCodeInput.value.trim(),
+      material: materialInput.value.trim(),
+      spec: specInput.value.trim(),
+      supplier_company_id: supplierId
     });
   } catch (err) {
     const message =
@@ -91,8 +114,12 @@ const createProduct = async () => {
           await api.put(`/products/${codeValue}`, {
             name: nameValue || existing.name,
             type: type.value,
-            location: (location.value || existing.location || "").trim(),
-            min_stock: Number(min_stock.value || existing.min_stock || 0)
+            old_code: oldCodeInput.value.trim() || existing.old_code || "",
+            material: materialInput.value.trim() || existing.material || "",
+            spec: specInput.value.trim() || existing.spec || "",
+            location: "",
+            min_stock: 0,
+            supplier_company_id: supplierId
           });
           loadData();
           return;
@@ -104,10 +131,12 @@ const createProduct = async () => {
   }
 
   code.value = "";
+  oldCodeInput.value = "";
   name.value = "";
-  location.value = "";
-  min_stock.value = "";
+  materialInput.value = "";
+  specInput.value = "";
   supplierCompanyId.value = "";
+  supplierInput.value = "";
 
   loadData();
 };
@@ -251,6 +280,20 @@ const selectCreateNameSuggestion = (nameValue) => {
   showCreateNameDropdown.value = false;
 };
 
+const filteredSupplierSuggestions = computed(() => {
+  const keyword = (supplierInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return companies.value
+    .filter((c) => (c.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectSupplierSuggestion = (company) => {
+  supplierInput.value = company.name;
+  supplierCompanyId.value = String(company.id);
+  showSupplierDropdown.value = false;
+};
+
 const onFinishedFileChange = (e) => {
   finishedUploadFile.value = e.target.files?.[0] || null;
 };
@@ -277,73 +320,98 @@ const deferHide = (fn) => {
 
     <h2 class="page-title mb-6">📦 완제품 관리</h2>
 
-    <!-- 제품 등록 -->
-    <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
+    <!-- 완제품 등록 -->
+    <div class="panel p-3 mb-6">
+      <div class="flex flex-col gap-2">
+        <div class="flex gap-2 items-center flex-wrap">
+          <input v-model="oldCodeInput"
+            placeholder="구품번"
+            class="input w-32" />
 
-      <div class="relative w-32">
-        <input
-          v-model="code"
-          @focus="showCreateCodeDropdown = true"
-          @blur="deferHide(() => showCreateCodeDropdown = false)"
-          placeholder="품번"
-          class="input w-full"
-        />
-        <div
-          v-if="showCreateCodeDropdown && filteredCreateCodeSuggestions.length"
-          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
-        >
-          <div
-            v-for="item in filteredCreateCodeSuggestions"
-            :key="`create-code-${item.code}`"
-            @click="selectCreateCodeSuggestion(item.code)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-          >
-            {{ item.code }} ({{ item.name }})
+          <div class="relative w-40">
+            <input
+              v-model="code"
+              @focus="showCreateCodeDropdown = true"
+              @blur="deferHide(() => showCreateCodeDropdown = false)"
+              placeholder="신품번"
+              class="input w-full"
+            />
+            <div
+              v-if="showCreateCodeDropdown && filteredCreateCodeSuggestions.length"
+              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="item in filteredCreateCodeSuggestions"
+                :key="`create-code-${item.code}`"
+                @click="selectCreateCodeSuggestion(item.code)"
+                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+              >
+                {{ item.code }} ({{ item.name }})
+              </div>
+            </div>
+          </div>
+
+          <div class="relative w-56">
+            <input
+              v-model="name"
+              @focus="showCreateNameDropdown = true"
+              @blur="deferHide(() => showCreateNameDropdown = false)"
+              placeholder="품명"
+              class="input w-full"
+            />
+            <div
+              v-if="showCreateNameDropdown && filteredCreateNameSuggestions.length"
+              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="item in filteredCreateNameSuggestions"
+                :key="`create-name-${item.code}`"
+                @click="selectCreateNameSuggestion(item.name)"
+                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+              >
+                {{ item.name }} ({{ item.code }})
+              </div>
+            </div>
+          </div>
+
+          <button @click="createProduct" class="btn btn-primary">
+            완제품 등록
+          </button>
+        </div>
+
+        <div class="flex gap-2 items-center flex-wrap">
+          <input v-model="specInput"
+            placeholder="규격"
+            class="input w-32" />
+
+          <input v-model="materialInput"
+            placeholder="재질"
+            class="input w-32" />
+
+          <div class="relative w-48">
+            <input
+              v-model="supplierInput"
+              @focus="showSupplierDropdown = true"
+              @blur="deferHide(() => showSupplierDropdown = false)"
+              placeholder="발주처"
+              class="input w-full"
+            />
+            <div
+              v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
+              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="c in filteredSupplierSuggestions"
+                :key="`supplier-${c.id}`"
+                @click="selectSupplierSuggestion(c)"
+                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+              >
+                {{ c.name }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="relative w-32">
-        <input
-          v-model="name"
-          @focus="showCreateNameDropdown = true"
-          @blur="deferHide(() => showCreateNameDropdown = false)"
-          placeholder="제품명"
-          class="input w-full"
-        />
-        <div
-          v-if="showCreateNameDropdown && filteredCreateNameSuggestions.length"
-          class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
-        >
-          <div
-            v-for="item in filteredCreateNameSuggestions"
-            :key="`create-name-${item.code}`"
-            @click="selectCreateNameSuggestion(item.name)"
-            class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-          >
-            {{ item.name }} ({{ item.code }})
-          </div>
-        </div>
-      </div>
-
-      <select v-model="type" class="input">
-        <option value="PART">부품</option>
-        <option value="FINISHED">완제품</option>
-      </select>
-
-      <input v-model="location" placeholder="위치" class="input w-32" />
-      <input v-model="min_stock" type="number" placeholder="최소재고" class="input w-24" />
-
-      <select v-model="supplierCompanyId" class="input w-40">
-        <option value="">발주처 선택</option>
-        <option v-for="c in companies" :key="c.id" :value="c.id">
-          {{ c.name }}
-        </option>
-      </select>
-
-      <button @click="createProduct" class="btn btn-primary">
-        제품 등록
-      </button>
-
     </div>
 
     <div class="panel mb-6">
@@ -425,32 +493,31 @@ const deferHide = (fn) => {
 
         <thead class="table-head">
           <tr>
-            <th class="p-3">제품</th>
-            <th class="p-3">위치</th>
-            <th class="p-3">최소재고</th>
-            <th class="p-3">발주처</th>
+            <th class="p-3">구품번</th>
+            <th class="p-3">신품번</th>
+            <th class="p-3">품명</th>
+            <th class="p-3">규격</th>
+            <th class="p-3">재질</th>
             <th class="p-3">BOM</th>
-            <th class="p-3">삭제</th>
+            <th class="p-3">발주처</th>
+            <th class="p-3">관리</th>
           </tr>
         </thead>
 
         <tbody>
           <tr v-for="p in filteredProducts" :key="p.code" class="border-t">
 
-            <!-- 제품 -->
             <td class="p-3 font-semibold">
-              {{ p.name }} ({{ p.code }})
+              {{ p.old_code || "-" }}
             </td>
-
-            <td class="p-3">{{ p.location }}</td>
-            <td class="p-3">{{ p.min_stock }}</td>
-
-            <!-- 발주처 -->
             <td class="p-3">
-              <span class="text-sm text-slate-700">
-                {{ companies.find(c => c.id === p.supplier_company_id)?.name || "-" }}
-              </span>
+              {{ p.code }}
             </td>
+            <td class="p-3">
+              {{ p.name }}
+            </td>
+            <td class="p-3">{{ p.spec || "-" }}</td>
+            <td class="p-3">{{ p.material || "-" }}</td>
 
             <!-- ⭐ BOM -->
             <td class="p-3">
@@ -516,6 +583,13 @@ const deferHide = (fn) => {
 
               </div>
 
+            </td>
+
+            <!-- 발주처 -->
+            <td class="p-3">
+              <span class="text-sm text-slate-700">
+                {{ companies.find(c => c.id === p.supplier_company_id)?.name || "-" }}
+              </span>
             </td>
 
             <td class="p-3">
