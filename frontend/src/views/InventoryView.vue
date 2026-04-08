@@ -550,6 +550,15 @@ const uploadPartsExcel = async () => {
     `엑셀 업로드 완료 (신규 ${created}건, 업데이트 ${updated}건, 스킵 ${skipped}건, 총행 ${rowsTotal}건)`
   );
 };
+
+const refreshUpload = async () => {
+  uploadFile.value = null;
+  if (uploadInputRef.value) {
+    uploadInputRef.value.value = "";
+  }
+  await loadInventory();
+  await loadProducts();
+};
 </script>
 
 <template>
@@ -689,6 +698,7 @@ const uploadPartsExcel = async () => {
       <div class="p-3 flex gap-2 items-center flex-wrap">
         <input ref="uploadInputRef" type="file" @change="onFileChange" class="input w-72" />
         <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
+        <button @click="refreshUpload" class="btn btn-secondary">새로고침</button>
       </div>
     </div>
 
