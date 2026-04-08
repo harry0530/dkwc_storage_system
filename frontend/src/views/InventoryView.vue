@@ -661,15 +661,9 @@ const refreshUpload = async () => {
       <div class="flex gap-2 items-center">
         <button
           @click="openPartsModal('register')"
-          class="btn btn-secondary"
+          class="btn btn-primary"
         >
           단품 등록
-        </button>
-        <button
-          @click="openPartsModal('upload')"
-          class="btn btn-secondary"
-        >
-          엑셀 업로드
         </button>
         <button
           @click="saveInventoryPdf"
@@ -691,19 +685,19 @@ const refreshUpload = async () => {
       <div class="absolute inset-0 bg-black/40" @click="showPartsManageModal = false"></div>
       <div class="relative bg-white w-[90vw] max-w-5xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b">
-          <div class="flex items-center gap-2">
-            <button
-              @click="partsModalTab = 'register'"
-              :class="partsModalTab === 'register' ? 'btn btn-primary' : 'btn btn-secondary'"
-            >
-              단품 등록
-            </button>
-            <button
-              @click="partsModalTab = 'upload'"
-              :class="partsModalTab === 'upload' ? 'btn btn-primary' : 'btn btn-secondary'"
-            >
-              엑셀 업로드
-            </button>
+        <div class="flex items-center gap-2">
+          <button
+            @click="partsModalTab = 'register'"
+            :class="partsModalTab === 'register' ? 'btn btn-primary' : 'btn btn-secondary'"
+          >
+            단품 등록
+          </button>
+          <button
+            @click="partsModalTab = 'upload'"
+            :class="partsModalTab === 'upload' ? 'btn btn-success' : 'btn btn-secondary'"
+          >
+            엑셀 업로드
+          </button>
           </div>
           <button class="btn btn-secondary" @click="showPartsManageModal = false">닫기</button>
         </div>
@@ -824,7 +818,7 @@ const refreshUpload = async () => {
               <div class="panel-header">엑셀 업로드</div>
               <div class="p-3 flex gap-2 items-center flex-wrap">
                 <input ref="uploadInputRef" type="file" @change="onFileChange" class="input w-72" />
-                <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
+                <button @click="uploadPartsExcel" class="btn btn-success">업로드</button>
                 <button @click="refreshUpload" class="btn btn-secondary">새로고침</button>
               </div>
             </div>
