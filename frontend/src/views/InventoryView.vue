@@ -506,7 +506,7 @@ const exportInventoryExcel = () => {
       재고수량: Number(item.quantity || 0),
       최소재고: Number(item.min_stock || 0),
       보관위치: item.location || "",
-      발주처: getCompanyName(item.supplier_company_id)
+      납품처: getCompanyName(item.supplier_company_id)
     }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -848,7 +848,7 @@ const refreshUpload = async () => {
                       v-model="supplierInput"
                       @focus="showSupplierDropdown = true"
                       @blur="deferHide(() => showSupplierDropdown = false)"
-                      placeholder="발주처"
+                      placeholder="납품처"
                       class="input w-full"
                     />
                     <div
@@ -1030,7 +1030,7 @@ const refreshUpload = async () => {
                 <th class="p-2">재고</th>
                 <th class="p-2">최소재고</th>
                 <th class="p-2">보관위치</th>
-                <th class="p-2">발주처</th>
+                <th class="p-2">납품처</th>
                 <th class="p-2">관리</th>
               </tr>
             </thead>
@@ -1086,7 +1086,7 @@ const refreshUpload = async () => {
         <input v-model="editLocation" placeholder="위치"
           class="input w-32" />
         <select v-model="editSupplierCompanyId" class="input w-40">
-          <option value="">발주처 선택</option>
+          <option value="">납품처 선택</option>
           <option v-for="c in companies" :key="c.id" :value="String(c.id)">
             {{ c.name }}
           </option>
@@ -1146,7 +1146,7 @@ const refreshUpload = async () => {
             <th class="p-3">현재 재고</th>
             <th class="p-3">최소 재고</th>
             <th class="p-3">보관위치</th>
-            <th class="p-3">발주처</th>
+            <th class="p-3">납품처</th>
             <th class="p-3">관리</th>
           </tr>
         </thead>

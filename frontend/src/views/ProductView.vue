@@ -14,7 +14,7 @@ const materialInput = ref("");
 const specInput = ref("");
 const type = ref("FINISHED");
 
-// 발주처 선택
+// 납품처 선택
 const supplierCompanyId = ref("");
 const supplierInput = ref("");
 const showSupplierDropdown = ref(false);
@@ -23,6 +23,7 @@ const showSupplierDropdown = ref(false);
 const bomInput = ref({});
 const searchInput = ref({});
 const showDropdown = ref({});
+const expandedBOM = ref({});
 const productSearch = ref("");
 const productSearchInput = ref("");
 const listMode = ref("FINISHED");
@@ -203,6 +204,13 @@ const selectPart = (parent_code, code) => {
   (bomInput.value[parent_code] ||= {}).child = code;
   searchInput.value[parent_code] = code;
   showDropdown.value[parent_code] = false;
+};
+
+const toggleBOM = (code) => {
+  expandedBOM.value = {
+    ...expandedBOM.value,
+    [code]: !expandedBOM.value[code]
+  };
 };
 
 const filteredProducts = computed(() => {
@@ -393,7 +401,7 @@ const deferHide = (fn) => {
               v-model="supplierInput"
               @focus="showSupplierDropdown = true"
               @blur="deferHide(() => showSupplierDropdown = false)"
-              placeholder="발주처"
+              placeholder="납품처"
               class="input w-full"
             />
             <div
@@ -499,109 +507,122 @@ const deferHide = (fn) => {
             <th class="p-3">규격</th>
             <th class="p-3">재질</th>
             <th class="p-3">BOM</th>
-            <th class="p-3">발주처</th>
+            <th class="p-3">납품처</th>
             <th class="p-3">관리</th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-for="p in filteredProducts" :key="p.code" class="border-t">
+          <template v-for="p in filteredProducts" :key="p.code">
+            <tr class="border-t">
 
             <td class="p-3 font-semibold">
               {{ p.old_code || "-" }}
             </td>
             <td class="p-3">
-              {{ p.code }}
+              <button class="text-left font-semibold text-slate-900 hover:underline"
+                @click="toggleBOM(p.code)">
+                {{ p.code }}
+              </button>
             </td>
             <td class="p-3">
-              {{ p.name }}
+              <button class="text-left text-slate-700 hover:underline"
+                @click="toggleBOM(p.code)">
+                {{ p.name }}
+              </button>
             </td>
             <td class="p-3">{{ p.spec || "-" }}</td>
             <td class="p-3">{{ p.material || "-" }}</td>
 
             <!-- ⭐ BOM -->
             <td class="p-3">
-
-              <!-- BOM 리스트 -->
-              <div
-                v-for="b in getBOM(p.code)"
-                :key="b.id"
-                class="flex items-center gap-2 text-sm"
-              >
-                {{ b.child_code }} x {{ b.quantity }}
-
-                <button @click="deleteBOM(b.id)"
-                  class="btn btn-danger h-7 px-2 text-xs">
-                  삭제
-                </button>
-              </div>
-
-              <!-- BOM 추가 -->
-              <div class="flex gap-1 mt-1">
-
-                <div class="relative">
-
-                  <input
-                    v-model="searchInput[p.code]"
-                    @focus="showDropdown[p.code] = true"
-                    @blur="deferHide(() => showDropdown[p.code] = false)"
-                    placeholder="부품 검색"
-                    class="input h-7 w-28 text-xs"
-                  />
-
-                  <div
-                    v-if="showDropdown[p.code]"
-                    @mousedown.prevent
-                    class="absolute bg-white border w-full max-h-40 overflow-y-auto z-20 shadow rounded"
-                  >
-
-                  <div
-                    v-for="item in filteredParts(p.code)"
-                    :key="item.code"
-                    @mousedown.prevent
-                    @click="selectPart(p.code, item.code)"
-                    class="p-1 hover:bg-slate-100 cursor-pointer text-xs"
-                  >
-                    {{ item.name }} ({{ item.code }})
-                  </div>
-
-                  </div>
-
-                </div>
-
-                <input
-                  v-model="(bomInput[p.code] ||= {}).qty"
-                  type="number"
-                  placeholder="수량"
-                  class="input h-7 w-16 text-xs"
-                />
-
-                <button @click="addBOM(p.code)"
-                  class="btn btn-primary h-7 px-2 text-xs">
-                  +
-                </button>
-
-              </div>
-
+              <span class="text-xs text-slate-500">
+                {{ expandedBOM[p.code] ? "접기" : "보기" }}
+              </span>
             </td>
 
-            <!-- 발주처 -->
+            <!-- 납품처 -->
             <td class="p-3">
               <span class="text-sm text-slate-700">
                 {{ companies.find(c => c.id === p.supplier_company_id)?.name || "-" }}
               </span>
             </td>
 
-            <td class="p-3">
-              <button
-                @click="deleteProduct(p.code)"
-                class="btn btn-danger h-8 px-2 text-xs"
-              >
-                삭제
-              </button>
-            </td>
+              <td class="p-3">
+                <button
+                  @click="deleteProduct(p.code)"
+                  class="btn btn-danger h-8 px-2 text-xs"
+                >
+                  삭제
+                </button>
+              </td>
+            </tr>
 
-          </tr>
+            <tr v-if="expandedBOM[p.code]" class="border-t bg-slate-50/70">
+              <td colspan="8" class="p-3">
+                <div class="panel bg-white/60">
+                  <div class="panel-header">BOM</div>
+                  <div class="p-3">
+                    <div
+                      v-for="b in getBOM(p.code)"
+                      :key="b.id"
+                      class="flex items-center gap-2 text-sm mb-1"
+                    >
+                      {{ b.child_code }} x {{ b.quantity }}
+
+                      <button @click="deleteBOM(b.id)"
+                        class="btn btn-danger h-7 px-2 text-xs">
+                        삭제
+                      </button>
+                    </div>
+
+                    <div class="flex gap-1 mt-2">
+                      <div class="relative">
+                        <input
+                          v-model="searchInput[p.code]"
+                          @focus="showDropdown[p.code] = true"
+                          @blur="deferHide(() => showDropdown[p.code] = false)"
+                          placeholder="부품 검색"
+                          class="input h-7 w-28 text-xs"
+                        />
+                        <div
+                          v-if="showDropdown[p.code]"
+                          @mousedown.prevent
+                          class="absolute bg-white border w-full max-h-40 overflow-y-auto z-20 shadow rounded"
+                        >
+                          <div
+                            v-for="item in filteredParts(p.code)"
+                            :key="item.code"
+                            @mousedown.prevent
+                            @click="selectPart(p.code, item.code)"
+                            class="p-1 hover:bg-slate-100 cursor-pointer text-xs"
+                          >
+                            {{ item.name }} ({{ item.code }})
+                          </div>
+                        </div>
+                      </div>
+
+                      <input
+                        v-model="(bomInput[p.code] ||= {}).qty"
+                        type="number"
+                        placeholder="수량"
+                        class="input h-7 w-16 text-xs"
+                      />
+
+                      <button @click="addBOM(p.code)"
+                        class="btn btn-primary h-7 px-2 text-xs">
+                        +
+                      </button>
+                    </div>
+
+                    <div v-if="getBOM(p.code).length === 0" class="text-xs text-slate-400 mt-2">
+                      BOM 정보가 없습니다.
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
 
       </table>
