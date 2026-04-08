@@ -2,8 +2,6 @@
 import { ref, onMounted, computed, watch } from "vue";
 import api from "../api";
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 const inventory = ref([]);
 const products = ref([]);
@@ -412,32 +410,86 @@ const buildTimestampTag = () => {
   )}_${pad(date.getHours())}${pad(date.getMinutes())}`;
 };
 
+const escapeHtml = (value) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 const saveInventoryPdf = () => {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const timestamp = new Date().toLocaleString("ko-KR");
-  doc.setFontSize(14);
-  doc.text("재고 현황", 14, 16);
-  doc.setFontSize(10);
-  doc.text(`생성일시: ${timestamp}`, 14, 22);
+  const rows = inventoryReportRows.value.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(r.code)}</td>
+      <td>${escapeHtml(r.name || "-")}</td>
+      <td class="num">${escapeHtml(r.quantity)}</td>
+    </tr>
+  `).join("");
 
-  const body = inventoryReportRows.value.map((r, i) => [
-    String(i + 1),
-    r.code,
-    r.name || "-",
-    String(r.quantity)
-  ]);
+  const html = `
+    <!doctype html>
+    <html lang="ko">
+      <head>
+        <meta charset="utf-8" />
+        <title>재고 현황</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 24px;
+            font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+            color: #0f172a;
+          }
+          h1 { font-size: 18px; margin: 0 0 6px; }
+          .meta { font-size: 12px; margin-bottom: 12px; color: #475569; }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            text-align: left;
+          }
+          th { background: #f8fafc; font-weight: 600; }
+          .num { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <h1>재고 현황</h1>
+        <div class="meta">생성일시: ${escapeHtml(timestamp)}</div>
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>품번</th>
+              <th>제품명</th>
+              <th>재고</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || "<tr><td colspan='4'>데이터 없음</td></tr>"}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
 
-  autoTable(doc, {
-    startY: 26,
-    head: [["No", "품번", "제품명", "재고"]],
-    body,
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [240, 240, 240], textColor: 20 },
-    columnStyles: { 3: { halign: "right" } }
-  });
-
-  const filename = `inventory_${buildTimestampTag()}.pdf`;
-  doc.save(filename);
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) {
+    alert("팝업 차단을 해제해 주세요.");
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  win.onload = () => {
+    win.print();
+    win.close();
+  };
 };
 
 const exportInventoryExcel = () => {
