@@ -28,6 +28,7 @@ const showSupplierDropdown = ref(false);
 const minStockInput = ref("");
 const locationInput = ref("");
 const uploadFile = ref(null);
+const uploadInputRef = ref(null);
 
 // 수정
 const editingCode = ref("");
@@ -530,6 +531,9 @@ const uploadPartsExcel = async () => {
     headers: { "Content-Type": "multipart/form-data" }
   });
   uploadFile.value = null;
+  if (uploadInputRef.value) {
+    uploadInputRef.value.value = "";
+  }
   await loadInventory();
   await loadProducts();
   const created = Number(res?.data?.created || 0);
@@ -683,7 +687,7 @@ const uploadPartsExcel = async () => {
     <div class="panel mb-4">
       <div class="panel-header">엑셀 업로드</div>
       <div class="p-3 flex gap-2 items-center flex-wrap">
-        <input type="file" @change="onFileChange" class="input w-72" />
+        <input ref="uploadInputRef" type="file" @change="onFileChange" class="input w-72" />
         <button @click="uploadPartsExcel" class="btn btn-primary">업로드</button>
       </div>
     </div>
