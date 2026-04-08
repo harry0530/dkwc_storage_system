@@ -20,7 +20,7 @@ const partsModalTab = ref("register");
 const stockInCode = ref("");
 const stockInNameInput = ref("");
 const stockInQuantity = ref("");
-const stockInReason = ref("");
+const stockInReason = ref("입고");
 const showStockInCodeDropdown = ref(false);
 const showStockInNameDropdown = ref(false);
 
@@ -50,6 +50,7 @@ const editLocation = ref("");
 const editMinStock = ref("");
 const editQuantity = ref("");
 const editReason = ref("");
+const editReasonPreset = ref("");
 const editSupplierCompanyId = ref("");
 
 // 검색용 부품 품번 구성
@@ -222,7 +223,7 @@ const stockIn = async () => {
   stockInCode.value = "";
   stockInNameInput.value = "";
   stockInQuantity.value = "";
-  stockInReason.value = "";
+  stockInReason.value = "입고";
 
   await loadInventory();
 };
@@ -239,6 +240,7 @@ const startEdit = (item) => {
   editLocation.value = item.location || "";
   editMinStock.value = String(item.min_stock ?? "");
   editQuantity.value = String(item.quantity ?? "");
+  editReasonPreset.value = "";
   editSupplierCompanyId.value = item.supplier_company_id
     ? String(item.supplier_company_id)
     : "";
@@ -254,6 +256,7 @@ const cancelEdit = () => {
   editLocation.value = "";
   editMinStock.value = "";
   editQuantity.value = "";
+  editReasonPreset.value = "";
   editSupplierCompanyId.value = "";
   editReason.value = "";
 };
@@ -273,9 +276,11 @@ const saveEdit = async () => {
       : null
   });
 
+  const reasonValue = editReason.value || editReasonPreset.value || "수량 변경";
+
   await api.put(`/inventory/${editingCode.value}`, {
     quantity: Number(editQuantity.value || 0),
-    reason: editReason.value
+    reason: reasonValue
   });
 
   cancelEdit();
@@ -1039,8 +1044,15 @@ const refreshUpload = async () => {
         <input v-model="editQuantity" type="number" placeholder="재고"
           class="input w-24" />
 
-        <input v-model="editReason" placeholder="수량 변경 사유"
-          class="input w-64" />
+        <select v-model="editReasonPreset" class="input w-28">
+          <option value="">사유 선택</option>
+          <option value="결손">결손</option>
+          <option value="불량">불량</option>
+          <option value="재고 정리">재고 정리</option>
+        </select>
+
+        <input v-model="editReason" placeholder="수량 변경 사유(직접 입력)"
+          class="input w-48" />
 
         <button @click="saveEdit" class="btn btn-primary">
           저장
