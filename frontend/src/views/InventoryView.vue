@@ -14,6 +14,14 @@ const showNameDropdown = ref(false);
 const typeFilter = ref("PART");
 const showAllPartsModal = ref(false);
 
+// 입고
+const stockInCode = ref("");
+const stockInNameInput = ref("");
+const stockInQuantity = ref("");
+const stockInReason = ref("");
+const showStockInCodeDropdown = ref(false);
+const showStockInNameDropdown = ref(false);
+
 const code = ref("");
 const nameInput = ref("");
 const quantity = ref("");
@@ -77,6 +85,21 @@ const loadProducts = async () => {
     code: item.new_code || item.code || "",
     old_code: item.old_code || ""
   }));
+};
+
+const findPartByCodeOrName = (codeValue, nameValue) => {
+  const codeKeyword = (codeValue || "").trim().toLowerCase();
+  const nameKeyword = (nameValue || "").trim().toLowerCase();
+  return inventory.value.find((item) => {
+    if ((item.type || "PART").toString().toUpperCase() !== "PART") return false;
+    const newCode = (item.new_code || item.code || "").toLowerCase();
+    const oldCode = (item.old_code || "").toLowerCase();
+    const name = (item.name || "").toLowerCase();
+    return (
+      (codeKeyword && (newCode === codeKeyword || oldCode === codeKeyword)) ||
+      (!codeKeyword && nameKeyword && name === nameKeyword)
+    );
+  });
 };
 
 const loadCompanies = async () => {
@@ -173,6 +196,33 @@ const addStock = async () => {
   await loadInventory();
   await loadProducts();
   alert("입고 완료");
+};
+
+const stockIn = async () => {
+  const addQty = Number(stockInQuantity.value || 0);
+  if (addQty <= 0) return alert("입고 수량을 입력하세요.");
+
+  const matched = findPartByCodeOrName(stockInCode.value, stockInNameInput.value);
+  if (!matched) {
+    alert("입고할 단품을 찾을 수 없습니다. 품번 또는 품명을 확인해 주세요.");
+    return;
+  }
+
+  const productCode = matched.new_code || matched.code;
+  const currentQty = Number(matched.quantity || 0);
+  const newQty = currentQty + addQty;
+
+  await api.put(`/inventory/${productCode}`, {
+    quantity: newQty,
+    reason: stockInReason.value || "입고"
+  });
+
+  stockInCode.value = "";
+  stockInNameInput.value = "";
+  stockInQuantity.value = "";
+  stockInReason.value = "";
+
+  await loadInventory();
 };
 
 // =====================
@@ -479,6 +529,41 @@ const filteredAddCodeSuggestions = computed(() => {
     .slice(0, 10);
 });
 
+const filteredStockInCodeSuggestions = computed(() => {
+  const keyword = (stockInCode.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return inventory.value
+    .filter(
+      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    )
+    .filter((item) =>
+      (item.new_code || item.code || "").toLowerCase().includes(keyword) ||
+      (item.old_code || "").toLowerCase().includes(keyword)
+    )
+    .slice(0, 10);
+});
+
+const selectStockInCodeSuggestion = (codeValue) => {
+  stockInCode.value = codeValue;
+  showStockInCodeDropdown.value = false;
+};
+
+const filteredStockInNameSuggestions = computed(() => {
+  const keyword = (stockInNameInput.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return inventory.value
+    .filter(
+      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    )
+    .filter((item) => (item.name || "").toLowerCase().includes(keyword))
+    .slice(0, 10);
+});
+
+const selectStockInNameSuggestion = (nameValue) => {
+  stockInNameInput.value = nameValue;
+  showStockInNameDropdown.value = false;
+};
+
 const filteredSupplierSuggestions = computed(() => {
   const keyword = (supplierInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
@@ -578,6 +663,75 @@ const refreshUpload = async () => {
           class="btn btn-success"
         >
           재고 엑셀 저장
+        </button>
+      </div>
+    </div>
+
+    <!-- 입고 -->
+    <div class="panel mb-4">
+      <div class="panel-header">입고</div>
+      <div class="p-3 flex gap-2 items-center flex-wrap">
+        <div class="relative w-48">
+          <input
+            v-model="stockInCode"
+            @focus="showStockInCodeDropdown = true"
+            @blur="deferHide(() => showStockInCodeDropdown = false)"
+            placeholder="구/신품번"
+            class="input w-full"
+          />
+          <div
+            v-if="showStockInCodeDropdown && filteredStockInCodeSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+          >
+            <div
+              v-for="item in filteredStockInCodeSuggestions"
+              :key="`stock-code-${item.new_code || item.code}`"
+              @click="selectStockInCodeSuggestion(item.new_code || item.code)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ item.new_code || item.code }} / {{ item.old_code || "-" }} ({{ item.name }})
+            </div>
+          </div>
+        </div>
+
+        <div class="relative w-56">
+          <input
+            v-model="stockInNameInput"
+            @focus="showStockInNameDropdown = true"
+            @blur="deferHide(() => showStockInNameDropdown = false)"
+            placeholder="품명"
+            class="input w-full"
+          />
+          <div
+            v-if="showStockInNameDropdown && filteredStockInNameSuggestions.length"
+            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow"
+          >
+            <div
+              v-for="item in filteredStockInNameSuggestions"
+              :key="`stock-name-${item.new_code || item.code}`"
+              @click="selectStockInNameSuggestion(item.name)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+            >
+              {{ item.name }} ({{ item.new_code || item.code }})
+            </div>
+          </div>
+        </div>
+
+        <input
+          v-model="stockInQuantity"
+          type="number"
+          placeholder="입고수량"
+          class="input w-24"
+        />
+
+        <input
+          v-model="stockInReason"
+          placeholder="사유 (선택)"
+          class="input w-48"
+        />
+
+        <button @click="stockIn" class="btn btn-primary">
+          입고
         </button>
       </div>
     </div>
