@@ -780,6 +780,7 @@ const refreshUpload = async () => {
                 <th class="p-2">최소재고</th>
                 <th class="p-2">보관위치</th>
                 <th class="p-2">발주처</th>
+                <th class="p-2">관리</th>
               </tr>
             </thead>
             <tbody>
@@ -793,9 +794,25 @@ const refreshUpload = async () => {
                 <td class="p-2">{{ item.min_stock }}</td>
                 <td class="p-2">{{ item.location || "-" }}</td>
                 <td class="p-2">{{ getCompanyName(item.supplier_company_id) }}</td>
+                <td class="p-2">
+                  <div class="flex gap-2">
+                    <button
+                      @click="startEdit(item); showAllPartsModal = false"
+                      class="btn btn-info h-7 px-2 text-xs"
+                    >
+                      수정
+                    </button>
+                    <button
+                      @click="deleteInventoryItem(item.new_code || item.code)"
+                      class="btn btn-danger h-7 px-2 text-xs"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </td>
               </tr>
               <tr v-if="allPartsSorted.length === 0">
-                <td colspan="9" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
+                <td colspan="10" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
               </tr>
             </tbody>
           </table>
