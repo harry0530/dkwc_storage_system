@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import api from "../api";
 import * as XLSX from "xlsx";
 
@@ -77,6 +77,15 @@ const loadInventory = async () => {
     location: item.location || "",
     type: (item.type || "PART").toString().toUpperCase()
   }));
+};
+
+const closeAllDropdowns = () => {
+  showNameDropdown.value = false;
+  showStockInCodeDropdown.value = false;
+  showStockInNameDropdown.value = false;
+  showAddNameDropdown.value = false;
+  showAddCodeDropdown.value = false;
+  showSupplierDropdown.value = false;
 };
 
 const loadProducts = async () => {
@@ -517,10 +526,17 @@ const exportInventoryExcel = () => {
   XLSX.writeFile(wb, filename);
 };
 
+const handleGlobalClick = () => closeAllDropdowns();
+
 onMounted(() => {
   loadInventory();
   loadProducts();
   loadCompanies();
+  window.addEventListener("click", handleGlobalClick);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("click", handleGlobalClick);
 });
 
 const searchPartCode = computed(
@@ -768,7 +784,7 @@ const refreshUpload = async () => {
                     placeholder="구품번"
                     class="input w-32" />
 
-                  <div class="relative w-40">
+                  <div class="relative w-40" @click.stop>
                     <input
                       v-model="code"
                       @focus="showAddCodeDropdown = true"
@@ -791,7 +807,7 @@ const refreshUpload = async () => {
                     </div>
                   </div>
 
-                  <div class="relative w-56">
+                  <div class="relative w-56" @click.stop>
                     <input
                       v-model="nameInput"
                       @focus="showAddNameDropdown = true"
@@ -843,7 +859,7 @@ const refreshUpload = async () => {
                     placeholder="보관위치"
                     class="input w-28" />
 
-                  <div class="relative w-48">
+                  <div class="relative w-48" @click.stop>
                     <input
                       v-model="supplierInput"
                       @focus="showSupplierDropdown = true"
@@ -888,7 +904,7 @@ const refreshUpload = async () => {
     <div class="panel mb-4">
       <div class="panel-header">입고</div>
       <div class="p-3 flex gap-2 items-center flex-wrap">
-        <div class="relative w-48">
+        <div class="relative w-48" @click.stop>
           <input
             v-model="stockInCode"
             @focus="showStockInCodeDropdown = true"
@@ -911,7 +927,7 @@ const refreshUpload = async () => {
           </div>
         </div>
 
-        <div class="relative w-56">
+        <div class="relative w-56" @click.stop>
           <input
             v-model="stockInNameInput"
             @focus="showStockInNameDropdown = true"
@@ -958,7 +974,7 @@ const refreshUpload = async () => {
       <div class="panel-header">부품 검색</div>
       <div class="p-3 flex gap-2 items-center flex-wrap">
 
-      <div class="relative w-48">
+      <div class="relative w-48" @click.stop>
         <input v-model="searchCode"
           placeholder="구/신품번 검색"
           class="input w-full" />
@@ -977,7 +993,7 @@ const refreshUpload = async () => {
         </div>
       </div>
 
-      <div class="relative w-56">
+      <div class="relative w-56" @click.stop>
         <input
           v-model="searchNameInput"
           @focus="showNameDropdown = true"

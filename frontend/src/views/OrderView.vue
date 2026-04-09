@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import api from "../api";
 
 const orders = ref([]);
@@ -146,6 +146,14 @@ const loadAll = async () => {
   companies.value = c.data;
   boms.value = b.data;
   inventory.value = i.data;
+};
+
+const closeAllDropdowns = () => {
+  showCompanyDropdown.value = false;
+  showCodeDropdown.value = false;
+  showPurchaseCompanyDropdown.value = false;
+  editPurchaseDropdown.value = false;
+  purchaseRowDropdown.value = {};
 };
 
 // =====================
@@ -533,7 +541,16 @@ const partialPurchase = async (order) => {
   loadAll();
 };
 
-onMounted(loadAll);
+const handleGlobalClick = () => closeAllDropdowns();
+
+onMounted(() => {
+  loadAll();
+  window.addEventListener("click", handleGlobalClick);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("click", handleGlobalClick);
+});
 
 const pendingOrders = computed(() =>
   orders.value.filter((o) => o.status === "WAIT")
@@ -714,7 +731,7 @@ const deletePurchaseOrder = async (id) => {
 
     <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap overflow-visible">
 
-      <div class="relative w-40">
+      <div class="relative w-40" @click.stop>
         <input
           v-model="companyInput"
           @input="updateProductName"
@@ -734,7 +751,7 @@ const deletePurchaseOrder = async (id) => {
         </div>
       </div>
 
-      <div class="relative w-40">
+      <div class="relative w-40" @click.stop>
         <input
           v-model="codeInput"
           @input="updateProductName"
@@ -1034,7 +1051,7 @@ const deletePurchaseOrder = async (id) => {
             </div>
           </div>
           <div class="p-4 flex flex-col gap-3 overflow-y-auto max-h-[75vh]">
-            <div class="relative w-64">
+            <div class="relative w-64" @click.stop>
               <input
                 v-model="purchaseCompanyInput"
                 @focus="showPurchaseCompanyDropdown = true"
@@ -1063,7 +1080,7 @@ const deletePurchaseOrder = async (id) => {
             <div v-for="(row, idx) in purchaseRows" :key="idx" class="grid grid-cols-[48px_220px_120px_1fr] gap-2 items-center">
               <div class="text-xs text-slate-500">{{ idx + 1 }}</div>
 
-              <div class="relative">
+              <div class="relative" @click.stop>
                 <input
                   v-model="row.codeInput"
                   @focus="purchaseRowDropdown[idx] = true"
@@ -1119,7 +1136,7 @@ const deletePurchaseOrder = async (id) => {
           <div class="p-4 flex flex-col gap-3">
             <input v-model="editPurchase.company" class="input w-full" placeholder="납품처" />
 
-            <div class="relative">
+            <div class="relative" @click.stop>
               <input
                 v-model="editPurchase.codeInput"
                 @input="editPurchaseDropdown = true"

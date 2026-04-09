@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import api from "../api";
 
 const products = ref([]);
@@ -55,6 +55,14 @@ const loadData = async () => {
   }));
   boms.value = b.data;
   companies.value = c.data;
+};
+
+const closeAllDropdowns = () => {
+  showSupplierDropdown.value = false;
+  showNameDropdown.value = false;
+  showCreateCodeDropdown.value = false;
+  showCreateNameDropdown.value = false;
+  showDropdown.value = {};
 };
 
 // =====================
@@ -230,7 +238,16 @@ const filteredProducts = computed(() => {
   });
 });
 
-onMounted(loadData);
+const handleGlobalClick = () => closeAllDropdowns();
+
+onMounted(() => {
+  loadData();
+  window.addEventListener("click", handleGlobalClick);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("click", handleGlobalClick);
+});
 
 const finishedCode = computed(
   () => `${finishedFirst.value}${finishedTwo.value}${finishedMid.value}-${finishedLast.value}`
@@ -336,7 +353,7 @@ const deferHide = (fn) => {
             placeholder="구품번"
             class="input w-32" />
 
-          <div class="relative w-40">
+          <div class="relative w-40" @click.stop>
             <input
               v-model="code"
               @focus="showCreateCodeDropdown = true"
@@ -359,7 +376,7 @@ const deferHide = (fn) => {
             </div>
           </div>
 
-          <div class="relative w-56">
+          <div class="relative w-56" @click.stop>
             <input
               v-model="name"
               @focus="showCreateNameDropdown = true"
@@ -396,7 +413,7 @@ const deferHide = (fn) => {
             placeholder="재질"
             class="input w-32" />
 
-          <div class="relative w-48">
+          <div class="relative w-48" @click.stop>
             <input
               v-model="supplierInput"
               @focus="showSupplierDropdown = true"
@@ -448,7 +465,7 @@ const deferHide = (fn) => {
           </button>
         </div>
 
-        <div class="relative w-56">
+        <div class="relative w-56" @click.stop>
           <input
             v-model="productSearchInput"
             @focus="showNameDropdown = true"
@@ -577,7 +594,7 @@ const deferHide = (fn) => {
                     </div>
 
                     <div class="flex gap-1 mt-2">
-                      <div class="relative">
+                      <div class="relative" @click.stop>
                         <input
                           v-model="searchInput[p.code]"
                           @focus="showDropdown[p.code] = true"
