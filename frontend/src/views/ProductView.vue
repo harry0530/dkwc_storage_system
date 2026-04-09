@@ -290,11 +290,17 @@ const toggleBomQuickPart = (p) => {
     return;
   }
 
-  bomRows.value.push({
+  const emptyIndex = bomRows.value.findIndex((row) => !row.partCode && !row.partInput && !row.qty);
+  const newRow = {
     partInput: `${p.name} (${p.code})`,
     partCode: p.code,
     qty: ""
-  });
+  };
+  if (emptyIndex >= 0) {
+    bomRows.value.splice(emptyIndex, 1, newRow);
+  } else {
+    bomRows.value.push(newRow);
+  }
 };
 
 const resetBomModal = () => {
