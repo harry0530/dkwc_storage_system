@@ -480,7 +480,9 @@ const visiblePurchaseOrders = computed(() =>
 const purchaseBatches = computed(() => {
   const map = new Map();
 
-  const rows = Array.isArray(visiblePurchaseOrders.value) ? visiblePurchaseOrders.value : [];
+  const rows = Array.isArray(visiblePurchaseOrders.value)
+    ? visiblePurchaseOrders.value.filter((o) => o && typeof o === "object")
+    : [];
 
   for (const o of rows) {
     const key = o.batch_id ? `batch-${o.batch_id}` : `single-${o.id}`;
@@ -521,7 +523,9 @@ const formatOrderTime = (dateValue) => {
 
 const receiptMap = computed(() => {
   const map = new Map();
-  const rows = Array.isArray(purchaseReceipts.value) ? purchaseReceipts.value : [];
+  const rows = Array.isArray(purchaseReceipts.value)
+    ? purchaseReceipts.value.filter((r) => r && typeof r === "object")
+    : [];
   for (const r of rows) {
     if (!map.has(r.purchase_order_id)) {
       map.set(r.purchase_order_id, []);
@@ -796,61 +800,61 @@ const deletePurchaseOrder = async (id) => {
                 </td>
               </tr>
 
-              <tr v-for="o in batch.items" :key="o.id" class="border-t">
+              <tr v-for="(o, idx) in batch.items" :key="o?.id ?? `${batch.batch_id}-${idx}`" class="border-t">
 
                 <td class="p-3">{{ batch.batch_id }}</td>
 
                 <td class="p-3">
-                  {{ o.product_name }}
+                  {{ o?.product_name || "-" }}
                   <div class="text-xs text-gray-400">
-                    {{ o.product_code }}
+                    {{ o?.product_code || "-" }}
                   </div>
                 </td>
 
-                <td class="p-3">{{ o.quantity }}</td>
-                <td class="p-3">{{ o.received_quantity || 0 }}</td>
-                <td class="p-3">{{ (o.quantity || 0) - (o.received_quantity || 0) }}</td>
+                <td class="p-3">{{ o?.quantity ?? 0 }}</td>
+                <td class="p-3">{{ o?.received_quantity ?? 0 }}</td>
+                <td class="p-3">{{ (o?.quantity || 0) - (o?.received_quantity || 0) }}</td>
                 <td class="p-3">
                   {{
-                    (receiptMap.get(o.id) || []).length
-                      ? formatOrderTime((receiptMap.get(o.id) || []).slice(-1)[0].created_at)
+                    (receiptMap.get(o?.id) || []).length
+                      ? formatOrderTime((receiptMap.get(o?.id) || []).slice(-1)[0].created_at)
                       : "-"
                   }}
                 </td>
-                <td class="p-3">{{ o.company }}</td>
+                <td class="p-3">{{ o?.company || "-" }}</td>
 
                 <td class="p-3">
-                  <span v-if="o.status === 'WAIT'">대기</span>
-                  <span v-else-if="o.status === 'PARTIAL'">부분입고</span>
+                  <span v-if="o?.status === 'WAIT'">대기</span>
+                  <span v-else-if="o?.status === 'PARTIAL'">부분입고</span>
                   <span v-else>완료</span>
                 </td>
 
                 <td class="p-3 flex gap-2">
-                  <button v-if="o.status === 'WAIT'"
+                  <button v-if="o?.status === 'WAIT'"
                     @click="completePurchase(o.id)"
                     class="btn btn-success h-8 px-2 text-xs">
                     전체 입고
                   </button>
 
-                  <button v-if="o.status !== 'DONE'"
+                  <button v-if="o?.status !== 'DONE'"
                     @click="partialPurchase(o)"
                     class="btn btn-secondary h-8 px-2 text-xs">
                     부분 입고
                   </button>
 
                   <button
-                    @click="toggleReceipt(o.id)"
+                    @click="o?.id && toggleReceipt(o.id)"
                     class="btn btn-secondary h-8 px-2 text-xs">
                     입고내역
                   </button>
 
-                  <button v-if="o.status !== 'DONE'"
+                  <button v-if="o?.status !== 'DONE'"
                     @click="deletePurchaseOrder(o.id)"
                     class="btn btn-danger h-8 px-2 text-xs">
                     삭제
                   </button>
 
-                  <button v-if="o.status === 'DONE'"
+                  <button v-if="o?.status === 'DONE'"
                     @click="undoPurchase(o.id)"
                     class="btn btn-secondary h-8 px-2 text-xs">
                     취소
@@ -859,7 +863,7 @@ const deletePurchaseOrder = async (id) => {
 
               </tr>
 
-              <tr v-if="showReceipt[o.id]" class="border-t bg-white">
+              <tr v-if="o?.id && showReceipt[o.id]" class="border-t bg-white">
                 <td colspan="9" class="p-3">
                   <div class="text-sm font-semibold mb-2">입고 내역</div>
                   <div v-if="!(receiptMap.get(o.id) || []).length" class="text-xs text-slate-400">
