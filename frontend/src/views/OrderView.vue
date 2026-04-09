@@ -480,7 +480,9 @@ const visiblePurchaseOrders = computed(() =>
 const purchaseBatches = computed(() => {
   const map = new Map();
 
-  for (const o of visiblePurchaseOrders.value) {
+  const rows = Array.isArray(visiblePurchaseOrders.value) ? visiblePurchaseOrders.value : [];
+
+  for (const o of rows) {
     const key = o.batch_id ? `batch-${o.batch_id}` : `single-${o.id}`;
     if (!map.has(key)) {
       map.set(key, {
@@ -519,7 +521,8 @@ const formatOrderTime = (dateValue) => {
 
 const receiptMap = computed(() => {
   const map = new Map();
-  for (const r of purchaseReceipts.value) {
+  const rows = Array.isArray(purchaseReceipts.value) ? purchaseReceipts.value : [];
+  for (const r of rows) {
     if (!map.has(r.purchase_order_id)) {
       map.set(r.purchase_order_id, []);
     }
