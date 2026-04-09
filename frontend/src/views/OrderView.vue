@@ -603,6 +603,23 @@ const formatOrderTime = (dateValue) => {
   }).format(date);
 };
 
+const formatOrderDate = (dateValue) => {
+  if (!dateValue) return "-";
+  const raw = String(dateValue).trim();
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const withTimezone = /[zZ]|[+\-]\d{2}:\d{2}$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const date = new Date(withTimezone);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+};
+
 const receiptMap = computed(() => {
   const map = new Map();
   const rows = Array.isArray(purchaseReceipts.value)
@@ -631,6 +648,16 @@ const toggleReceipt = (id) => {
   showReceipt.value = {
     ...showReceipt.value,
     [key]: !showReceipt.value[key]
+  };
+};
+
+const showBatch = ref({});
+const batchKey = (batch) => String(batch?.key ?? batch?.batch_id ?? "");
+const toggleBatch = (batch) => {
+  const key = batchKey(batch);
+  showBatch.value = {
+    ...showBatch.value,
+    [key]: !showBatch.value[key]
   };
 };
 
@@ -867,30 +894,36 @@ const deletePurchaseOrder = async (id) => {
       <div class="panel overflow-hidden">
         <table class="w-full text-left">
 
-          <thead class="table-head">
-            <tr>
-              <th class="p-3">발주ID</th>
-              <th class="p-3">제품</th>
-              <th class="p-3">주문수량</th>
-              <th class="p-3">입고수량</th>
-              <th class="p-3">잔여</th>
-              <th class="p-3">최근 입고</th>
-              <th class="p-3">납품처</th>
-              <th class="p-3">상태</th>
-              <th class="p-3">작업</th>
-            </tr>
-          </thead>
-
           <tbody>
             <template v-for="batch in purchaseBatches" :key="batch.key">
               <tr class="border-t bg-slate-50/70">
                 <td class="p-3 font-semibold" colspan="9">
-                  발주ID #{{ batch.batch_id }} · {{ batch.company }} ·
-                  <span class="text-slate-500">발주시간 {{ formatOrderTime(batch.created_at) }}</span>
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      발주ID #{{ batch.batch_id }} · {{ batch.company }} ·
+                      <span class="text-slate-500">발주시간 {{ formatOrderDate(batch.created_at) }}</span>
+                    </div>
+                    <button class="btn btn-secondary h-8 px-2 text-xs" @click="toggleBatch(batch)">
+                      {{ showBatch[batchKey(batch)] ? "접기" : "자세히보기" }}
+                    </button>
+                  </div>
                 </td>
               </tr>
 
-              <template v-for="(o, idx) in batch.items" :key="o?.id ?? `${batch.batch_id}-${idx}`">
+              <template v-if="showBatch[batchKey(batch)]">
+                <tr class="table-head">
+                  <th class="p-3">발주ID</th>
+                  <th class="p-3">제품</th>
+                  <th class="p-3">주문수량</th>
+                  <th class="p-3">입고수량</th>
+                  <th class="p-3">잔여</th>
+                  <th class="p-3">최근 입고</th>
+                  <th class="p-3">납품처</th>
+                  <th class="p-3">상태</th>
+                  <th class="p-3">작업</th>
+                </tr>
+
+                <template v-for="(o, idx) in batch.items" :key="o?.id ?? `${batch.batch_id}-${idx}`">
                 <tr class="border-t">
 
                   <td class="p-3">{{ batch.batch_id }}</td>
@@ -967,20 +1000,21 @@ const deletePurchaseOrder = async (id) => {
                       입고 내역이 없습니다.
                     </div>
                     <div v-else class="flex flex-col gap-1">
-                    <div v-for="r in (receiptMap.get(receiptKey(o.id)) || [])" :key="r.id"
-                      class="text-sm text-slate-700 flex gap-3 items-center">
-                      <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
-                      <span>+{{ r.quantity }}</span>
-                      <button class="btn btn-secondary h-7 px-2 text-xs" @click="openEditReceipt(r)">
-                        수정
-                      </button>
-                      <button class="btn btn-danger h-7 px-2 text-xs" @click="deleteReceipt(r.id)">
-                        삭제
-                      </button>
-                    </div>
+                      <div v-for="r in (receiptMap.get(receiptKey(o.id)) || [])" :key="r.id"
+                        class="text-sm text-slate-700 flex gap-3 items-center">
+                        <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
+                        <span>+{{ r.quantity }}</span>
+                        <button class="btn btn-secondary h-7 px-2 text-xs" @click="openEditReceipt(r)">
+                          수정
+                        </button>
+                        <button class="btn btn-danger h-7 px-2 text-xs" @click="deleteReceipt(r.id)">
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
+                </template>
               </template>
             </template>
           </tbody>
