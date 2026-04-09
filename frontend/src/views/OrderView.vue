@@ -52,6 +52,12 @@ const resolveProduct = (inputCode) => {
   const productByOld = products.value.find(p =>
     clean(p.old_code) === cleanInput
   );
+  const productByNameExact = products.value.find(p =>
+    clean(p.name) === cleanInput
+  );
+  const productByNameLike = products.value.find(p =>
+    clean(p.name).includes(cleanInput)
+  );
 
   let realCode = raw;
   let fromOld = false;
@@ -60,6 +66,10 @@ const resolveProduct = (inputCode) => {
   } else if (productByOld) {
     realCode = productByOld.code;
     fromOld = true;
+  } else if (productByNameExact) {
+    realCode = productByNameExact.code;
+  } else if (productByNameLike) {
+    realCode = productByNameLike.code;
   }
 
   const product = products.value.find(p =>
@@ -88,6 +98,13 @@ const buildCodeOptions = (keyword) => {
         key: `old-${p.old_code}`,
         code: p.old_code,
         label: `${p.old_code} (구품번)`
+      });
+    }
+    if (p.name && (!key || p.name.toLowerCase().includes(key))) {
+      list.push({
+        key: `name-${p.code}`,
+        code: p.code,
+        label: `${p.name} (${p.code})`
       });
     }
   }
@@ -260,27 +277,29 @@ const selectPurchaseCode = (code) => {
 // 주문 생성
 // =====================
 const createOrder = async () => {
-  if (!selectedCompany.value || !quantity.value) return;
+  const companyName = selectedCompany.value || companyInput.value;
+  if (!companyName || !quantity.value) return alert("회사/수량을 입력하세요.");
 
   if (stockWarning.value) {
     alert("재고 부족 상태입니다!");
     return;
   }
 
-  const finalCode = selectedCode.value || codeInput.value;
-
-  if (!finalCode) return alert("품번 입력");
+  const result = resolveProduct(selectedCode.value || codeInput.value);
+  if (!result) return alert("품번/품명을 확인하세요.");
+  const finalCode = result.realCode;
 
   await api.post("/orders/", {
     product_code: finalCode,
     quantity: Number(quantity.value),
-    company: selectedCompany.value
+    company: companyName
   });
 
   // 초기화
   companyInput.value = "";
   codeInput.value = "";
   selectedCode.value = "";
+  selectedCompany.value = "";
   displayProduct.value = "";
   stockWarning.value = "";
   quantity.value = "";
@@ -292,15 +311,17 @@ const createOrder = async () => {
 // 발주 생성
 // =====================
 const createPurchaseOrder = async () => {
-  if (!purchaseSelectedCompany.value || !purchaseQuantity.value) return;
+  const companyName = purchaseSelectedCompany.value || purchaseCompanyInput.value;
+  if (!companyName || !purchaseQuantity.value) return alert("납품처/수량을 입력하세요.");
 
-  const finalCode = purchaseSelectedCode.value || purchaseCodeInput.value;
-  if (!finalCode) return alert("품번 입력");
+  const result = resolveProduct(purchaseSelectedCode.value || purchaseCodeInput.value);
+  if (!result) return alert("품번/품명을 확인하세요.");
+  const finalCode = result.realCode;
 
   await api.post("/purchase-orders/", {
     product_code: finalCode,
     quantity: Number(purchaseQuantity.value),
-    company: purchaseSelectedCompany.value
+    company: companyName
   });
 
   purchaseCompanyInput.value = "";
@@ -420,7 +441,7 @@ const visibleOrders = computed(() =>
 );
 
 const pendingPurchaseOrders = computed(() =>
-  purchaseOrders.value.filter((o) => o.status === "WAIT")
+  purchaseOrders.value.filter((o) => o.status !== "DONE")
 );
 
 const completedPurchaseOrders = computed(() =>
@@ -478,7 +499,7 @@ const deletePurchaseOrder = async (id) => {
         </button>
       </div>
 
-    <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap">
+    <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap overflow-visible">
 
       <div class="relative w-40">
         <input
@@ -490,7 +511,7 @@ const deletePurchaseOrder = async (id) => {
           class="input w-full"
         />
         <div v-if="showCompanyDropdown"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+          class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="c in filteredCompanies"
             :key="c.id"
             @click="selectCompany(c)"
@@ -510,7 +531,7 @@ const deletePurchaseOrder = async (id) => {
           class="input w-full"
         />
         <div v-if="showCodeDropdown"
-          class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+          class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
           <div v-for="a in filteredCodes"
             :key="a.key"
             @click="selectCode(a.code)"
@@ -652,7 +673,7 @@ const deletePurchaseOrder = async (id) => {
         </button>
       </div>
 
-      <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap">
+      <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap overflow-visible">
 
         <div class="relative w-40">
           <input
@@ -664,7 +685,7 @@ const deletePurchaseOrder = async (id) => {
             class="input w-full"
           />
           <div v-if="showPurchaseCompanyDropdown"
-            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+            class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
             <div v-for="c in filteredPurchaseCompanies"
               :key="c.id"
               @click="selectPurchaseCompany(c)"
@@ -684,7 +705,7 @@ const deletePurchaseOrder = async (id) => {
             class="input w-full"
           />
           <div v-if="showPurchaseCodeDropdown"
-            class="absolute bg-white border w-full z-10 max-h-40 overflow-y-auto rounded-lg shadow">
+            class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
             <div v-for="a in filteredPurchaseCodes"
               :key="a.key"
               @click="selectPurchaseCode(a.code)"
