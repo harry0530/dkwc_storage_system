@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
+from datetime import datetime
 
 router = APIRouter(prefix="/purchase-orders", tags=["PurchaseOrders"])
 
@@ -62,6 +63,118 @@ def get_purchase_receipts(db: Session = Depends(get_db)):
         for r in receipts
     ]
 
+
+@router.put("/receipts/{receipt_id}")
+def update_receipt(receipt_id: int, data: schemas.PurchaseReceiptUpdate, db: Session = Depends(get_db)):
+    receipt = db.query(models.PurchaseOrderReceipt).filter(
+        models.PurchaseOrderReceipt.id == receipt_id
+    ).first()
+    if not receipt:
+        raise Exception("입고 내역 없음")
+
+    order = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == receipt.purchase_order_id
+    ).first()
+    if not order:
+        raise Exception("발주 없음")
+
+    new_qty = receipt.quantity
+    if data.quantity is not None:
+        new_qty = int(data.quantity)
+        if new_qty <= 0:
+            raise Exception("수량이 올바르지 않습니다")
+
+    delta = new_qty - (receipt.quantity or 0)
+    new_received = (order.received_quantity or 0) + delta
+
+    if new_received < 0:
+        raise Exception("입고 수량이 0보다 작아질 수 없습니다")
+    if new_received > (order.quantity or 0):
+        raise Exception("입고 수량이 주문 수량을 초과합니다")
+
+    # 재고 반영
+    if delta != 0:
+        product = db.query(models.Product).filter(
+            models.Product.new_code == order.product_code
+        ).first()
+        if product:
+            product.quantity = (product.quantity or 0) + delta
+
+        db.add(models.Transaction(
+            product_code=order.product_code,
+            quantity=abs(delta),
+            type="IN" if delta > 0 else "OUT",
+            reason="PURCHASE_EDIT"
+        ))
+
+    receipt.quantity = new_qty
+
+    if data.created_at:
+        try:
+            receipt.created_at = datetime.fromisoformat(data.created_at.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    order.received_quantity = new_received
+    if new_received == 0:
+        order.status = "WAIT"
+    elif new_received >= (order.quantity or 0):
+        order.status = "DONE"
+    else:
+        order.status = "PARTIAL"
+
+    db.commit()
+    update_batch_status(db, order.batch_id)
+
+    return {"message": "수정 완료"}
+
+
+@router.delete("/receipts/{receipt_id}")
+def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
+    receipt = db.query(models.PurchaseOrderReceipt).filter(
+        models.PurchaseOrderReceipt.id == receipt_id
+    ).first()
+    if not receipt:
+        raise Exception("입고 내역 없음")
+
+    order = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == receipt.purchase_order_id
+    ).first()
+    if not order:
+        raise Exception("발주 없음")
+
+    qty = receipt.quantity or 0
+    new_received = (order.received_quantity or 0) - qty
+    if new_received < 0:
+        raise Exception("입고 수량이 0보다 작아질 수 없습니다")
+
+    product = db.query(models.Product).filter(
+        models.Product.new_code == order.product_code
+    ).first()
+    if product:
+        product.quantity = (product.quantity or 0) - qty
+
+    db.add(models.Transaction(
+        product_code=order.product_code,
+        quantity=qty,
+        type="OUT",
+        reason="PURCHASE_DELETE"
+    ))
+
+    order.received_quantity = new_received
+    if new_received == 0:
+        order.status = "WAIT"
+    elif new_received >= (order.quantity or 0):
+        order.status = "DONE"
+    else:
+        order.status = "PARTIAL"
+
+    db.delete(receipt)
+    db.commit()
+    update_batch_status(db, order.batch_id)
+
+    return {"message": "삭제 완료"}
+
 @router.post("/batch")
 def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = Depends(get_db)):
     company = (data.company or "").strip()
@@ -99,6 +212,85 @@ def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = 
 
     db.commit()
     return {"batch_id": batch.id, "count": len(created)}
+
+
+@router.put("/{order_id}")
+def update_purchase_order(order_id: int, data: schemas.PurchaseOrderUpdate, db: Session = Depends(get_db)):
+    order = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id == order_id).first()
+    if not order:
+        raise Exception("발주 없음")
+
+    new_company = (data.company or "").strip() if data.company is not None else order.company
+    new_qty = order.quantity
+    if data.quantity is not None:
+        new_qty = int(data.quantity)
+        if new_qty <= 0:
+            raise Exception("수량이 올바르지 않습니다")
+        if (order.received_quantity or 0) > new_qty:
+            raise Exception("이미 입고된 수량보다 작게 수정할 수 없습니다")
+
+    new_code = order.product_code
+    if data.product_code:
+        product = resolve_product(db, data.product_code)
+        if not product:
+            raise Exception("존재하지 않는 품번입니다")
+        new_code = product.new_code
+
+    # 제품 변경 시 재고 이동 (이미 입고된 수량 반영)
+    if new_code != order.product_code and (order.received_quantity or 0) > 0:
+        qty = order.received_quantity or 0
+        old_product = db.query(models.Product).filter(
+            models.Product.new_code == order.product_code
+        ).first()
+        new_product = db.query(models.Product).filter(
+            models.Product.new_code == new_code
+        ).first()
+
+        if old_product:
+            old_product.quantity = (old_product.quantity or 0) - qty
+        if new_product:
+            new_product.quantity = (new_product.quantity or 0) + qty
+
+        db.add(models.Transaction(
+            product_code=order.product_code,
+            quantity=qty,
+            type="OUT",
+            reason="PURCHASE_EDIT"
+        ))
+        db.add(models.Transaction(
+            product_code=new_code,
+            quantity=qty,
+            type="IN",
+            reason="PURCHASE_EDIT"
+        ))
+
+    order.product_code = new_code
+    order.quantity = new_qty
+    order.company = new_company
+
+    # 상태 재계산
+    if (order.received_quantity or 0) == 0:
+        order.status = "WAIT"
+    elif (order.received_quantity or 0) >= new_qty:
+        order.status = "DONE"
+    else:
+        order.status = "PARTIAL"
+
+    # 배치 회사 동기화
+    if order.batch_id and data.company is not None:
+        batch = db.query(models.PurchaseOrderBatch).filter(
+            models.PurchaseOrderBatch.id == order.batch_id
+        ).first()
+        if batch:
+            batch.company = new_company
+        db.query(models.PurchaseOrder).filter(
+            models.PurchaseOrder.batch_id == order.batch_id
+        ).update({"company": new_company})
+
+    db.commit()
+    update_batch_status(db, order.batch_id)
+
+    return {"message": "수정 완료"}
 
 
 @router.post("/")

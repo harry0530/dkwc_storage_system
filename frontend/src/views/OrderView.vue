@@ -25,6 +25,17 @@ const purchaseSelectedCompany = ref("");
 const showPurchaseModal = ref(false);
 const purchaseRows = ref([]);
 const purchaseRowDropdown = ref({});
+const showEditPurchaseModal = ref(false);
+const editPurchase = ref({
+  id: null,
+  company: "",
+  codeInput: "",
+  quantity: ""
+});
+const editPurchaseDropdown = ref(false);
+const editingReceiptId = ref(null);
+const editReceiptQty = ref("");
+const editReceiptAt = ref("");
 
 // 표시
 const displayProduct = ref("");
@@ -275,6 +286,62 @@ const selectPurchaseRowCode = (index, code) => {
   row.selectedCode = code;
   row.codeInput = code;
   purchaseRowDropdown.value[index] = false;
+};
+
+const openEditPurchase = (order) => {
+  editPurchase.value = {
+    id: order.id,
+    company: order.company || "",
+    codeInput: order.product_code || "",
+    quantity: order.quantity || ""
+  };
+  showEditPurchaseModal.value = true;
+};
+
+const saveEditPurchase = async () => {
+  const payload = {
+    company: editPurchase.value.company,
+    product_code: editPurchase.value.codeInput,
+    quantity: Number(editPurchase.value.quantity)
+  };
+
+  await api.put(`/purchase-orders/${editPurchase.value.id}`, payload);
+  showEditPurchaseModal.value = false;
+  await loadAll();
+};
+
+const openEditReceipt = (receipt) => {
+  editingReceiptId.value = receipt.id;
+  editReceiptQty.value = receipt.quantity;
+  const date = new Date(receipt.created_at);
+  if (!Number.isNaN(date.getTime())) {
+    const pad = (n) => String(n).padStart(2, "0");
+    editReceiptAt.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  } else {
+    editReceiptAt.value = "";
+  }
+};
+
+const cancelEditReceipt = () => {
+  editingReceiptId.value = null;
+  editReceiptQty.value = "";
+  editReceiptAt.value = "";
+};
+
+const saveEditReceipt = async () => {
+  await api.put(`/purchase-orders/receipts/${editingReceiptId.value}`, {
+    quantity: Number(editReceiptQty.value),
+    created_at: editReceiptAt.value || null
+  });
+  cancelEditReceipt();
+  await loadAll();
+};
+
+const deleteReceipt = async (id) => {
+  const ok = window.confirm("입고 내역을 삭제할까요?");
+  if (!ok) return;
+  await api.delete(`/purchase-orders/receipts/${id}`);
+  await loadAll();
 };
 
 // =====================
@@ -853,18 +920,24 @@ const deletePurchaseOrder = async (id) => {
                       {{ showReceipt[receiptKey(o?.id)] ? "입고내역 닫기" : "입고내역" }}
                     </button>
 
-                    <button v-if="o?.status !== 'DONE'"
-                      @click="deletePurchaseOrder(o.id)"
-                      class="btn btn-danger h-8 px-2 text-xs">
-                      삭제
-                    </button>
+                  <button v-if="o?.status !== 'DONE'"
+                    @click="deletePurchaseOrder(o.id)"
+                    class="btn btn-danger h-8 px-2 text-xs">
+                    삭제
+                  </button>
 
-                    <button v-if="o?.status === 'DONE'"
-                      @click="undoPurchase(o.id)"
-                      class="btn btn-secondary h-8 px-2 text-xs">
-                      취소
-                    </button>
-                  </td>
+                  <button
+                    @click="openEditPurchase(o)"
+                    class="btn btn-secondary h-8 px-2 text-xs">
+                    수정
+                  </button>
+
+                  <button v-if="o?.status === 'DONE'"
+                    @click="undoPurchase(o.id)"
+                    class="btn btn-secondary h-8 px-2 text-xs">
+                    취소
+                  </button>
+                </td>
 
                 </tr>
 
@@ -875,11 +948,17 @@ const deletePurchaseOrder = async (id) => {
                       입고 내역이 없습니다.
                     </div>
                     <div v-else class="flex flex-col gap-1">
-                      <div v-for="r in (receiptMap.get(receiptKey(o.id)) || [])" :key="r.id"
-                        class="text-sm text-slate-700 flex gap-3">
-                        <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
-                        <span>+{{ r.quantity }}</span>
-                      </div>
+                    <div v-for="r in (receiptMap.get(receiptKey(o.id)) || [])" :key="r.id"
+                      class="text-sm text-slate-700 flex gap-3 items-center">
+                      <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
+                      <span>+{{ r.quantity }}</span>
+                      <button class="btn btn-secondary h-7 px-2 text-xs" @click="openEditReceipt(r)">
+                        수정
+                      </button>
+                      <button class="btn btn-danger h-7 px-2 text-xs" @click="deleteReceipt(r.id)">
+                        삭제
+                      </button>
+                    </div>
                     </div>
                   </td>
                 </tr>
@@ -969,6 +1048,62 @@ const deletePurchaseOrder = async (id) => {
               </button>
               <div class="text-xs text-slate-500">기본 10줄 제공</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 발주 수정 모달 -->
+      <div v-if="showEditPurchaseModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="showEditPurchaseModal = false"></div>
+        <div class="relative bg-white w-[90vw] max-w-xl rounded-2xl shadow-xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b">
+            <div class="font-semibold">발주 수정</div>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-secondary" @click="showEditPurchaseModal = false">닫기</button>
+              <button class="btn btn-primary" @click="saveEditPurchase">저장</button>
+            </div>
+          </div>
+          <div class="p-4 flex flex-col gap-3">
+            <input v-model="editPurchase.company" class="input w-full" placeholder="납품처" />
+
+            <div class="relative">
+              <input
+                v-model="editPurchase.codeInput"
+                @focus="editPurchaseDropdown = true"
+                @blur="setTimeout(() => editPurchaseDropdown = false, 200)"
+                placeholder="품번/품명"
+                class="input w-full"
+              />
+              <div v-if="editPurchaseDropdown"
+                class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
+                <div v-for="a in buildCodeOptions(editPurchase.codeInput)"
+                  :key="a.key"
+                  @click="editPurchase.codeInput = a.code"
+                  class="p-2 hover:bg-slate-100 cursor-pointer">
+                  {{ a.label }}
+                </div>
+              </div>
+            </div>
+
+            <input v-model="editPurchase.quantity" type="number" min="1" class="input w-full" placeholder="수량" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 입고 내역 수정 모달 -->
+      <div v-if="editingReceiptId" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="cancelEditReceipt"></div>
+        <div class="relative bg-white w-[90vw] max-w-md rounded-2xl shadow-xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b">
+            <div class="font-semibold">입고 내역 수정</div>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-secondary" @click="cancelEditReceipt">닫기</button>
+              <button class="btn btn-primary" @click="saveEditReceipt">저장</button>
+            </div>
+          </div>
+          <div class="p-4 flex flex-col gap-3">
+            <input v-model="editReceiptQty" type="number" min="1" class="input w-full" placeholder="수량" />
+            <input v-model="editReceiptAt" type="datetime-local" class="input w-full" />
           </div>
         </div>
       </div>

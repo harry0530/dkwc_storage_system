@@ -57,3 +57,14 @@ class PurchaseOrderReceiptOut(BaseModel):
     purchase_order_id: int
     quantity: int
     created_at: str
+
+
+class PurchaseOrderUpdate(BaseModel):
+    product_code: str | None = None
+    quantity: int | None = None
+    company: str | None = None
+
+
+class PurchaseReceiptUpdate(BaseModel):
+    quantity: int | None = None
+    created_at: str | None = None
