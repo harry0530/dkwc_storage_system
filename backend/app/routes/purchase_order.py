@@ -462,8 +462,27 @@ def delete_purchase(order_id: int, db: Session = Depends(get_db)):
     if not order:
         raise Exception("주문 없음")
 
-    if order.status != "WAIT":
-        raise Exception("대기 상태만 삭제 가능")
+    # 기존 입고 내역이 있으면 재고 되돌림 + 입고 내역 삭제
+    receipts = db.query(models.PurchaseOrderReceipt).filter(
+        models.PurchaseOrderReceipt.purchase_order_id == order.id
+    ).all()
+    if receipts:
+        total = sum((r.quantity or 0) for r in receipts)
+        product = db.query(models.Product).filter(
+            models.Product.new_code == order.product_code
+        ).first()
+        if product:
+            product.quantity = (product.quantity or 0) - total
+
+        db.add(models.Transaction(
+            product_code=order.product_code,
+            quantity=total,
+            type="OUT",
+            reason="PURCHASE_DELETE"
+        ))
+
+        for r in receipts:
+            db.delete(r)
 
     batch_id = order.batch_id
     db.delete(order)

@@ -299,15 +299,24 @@ const openEditPurchase = (order) => {
 };
 
 const saveEditPurchase = async () => {
-  const payload = {
-    company: editPurchase.value.company,
-    product_code: editPurchase.value.codeInput,
-    quantity: Number(editPurchase.value.quantity)
-  };
+  const payload = {};
+  const company = (editPurchase.value.company || "").trim();
+  const code = (editPurchase.value.codeInput || "").trim();
+  const qtyRaw = editPurchase.value.quantity;
 
-  await api.put(`/purchase-orders/${editPurchase.value.id}`, payload);
-  showEditPurchaseModal.value = false;
-  await loadAll();
+  if (company) payload.company = company;
+  if (code) payload.product_code = code;
+  if (qtyRaw !== "" && qtyRaw !== null && qtyRaw !== undefined) {
+    payload.quantity = Number(qtyRaw);
+  }
+
+  try {
+    await api.put(`/purchase-orders/${editPurchase.value.id}`, payload);
+    showEditPurchaseModal.value = false;
+    await loadAll();
+  } catch (err) {
+    alert("수정 실패");
+  }
 };
 
 const openEditReceipt = (receipt) => {
@@ -635,8 +644,12 @@ const deleteOrder = async (id) => {
 const deletePurchaseOrder = async (id) => {
   const ok = window.confirm("발주를 삭제할까요?");
   if (!ok) return;
-  await api.delete(`/purchase-orders/${id}`);
-  loadAll();
+  try {
+    await api.delete(`/purchase-orders/${id}`);
+    await loadAll();
+  } catch (err) {
+    alert("삭제 실패");
+  }
 };
 </script>
 
