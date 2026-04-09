@@ -81,6 +81,15 @@ class PurchaseOrderBatch(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PurchaseOrderReceipt(Base):
+    __tablename__ = "purchase_order_receipts"
+
+    id = Column(Integer, primary_key=True)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"))
+    quantity = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
 

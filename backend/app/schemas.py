@@ -50,3 +50,10 @@ class PurchaseOrderItemCreate(BaseModel):
 class PurchaseOrderBatchCreate(BaseModel):
     company: str
     items: list[PurchaseOrderItemCreate]
+
+
+class PurchaseOrderReceiptOut(BaseModel):
+    id: int
+    purchase_order_id: int
+    quantity: int
+    created_at: str

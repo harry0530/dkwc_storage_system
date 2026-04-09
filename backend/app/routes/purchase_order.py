@@ -48,6 +48,20 @@ def update_batch_status(db: Session, batch_id: int):
         batch.status = status
         db.commit()
 
+
+@router.get("/receipts")
+def get_purchase_receipts(db: Session = Depends(get_db)):
+    receipts = db.query(models.PurchaseOrderReceipt).all()
+    return [
+        {
+            "id": r.id,
+            "purchase_order_id": r.purchase_order_id,
+            "quantity": r.quantity,
+            "created_at": r.created_at
+        }
+        for r in receipts
+    ]
+
 @router.post("/batch")
 def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = Depends(get_db)):
     company = (data.company or "").strip()
@@ -167,6 +181,11 @@ def receive_purchase(order_id: int, data: schemas.PurchaseReceive, db: Session =
     else:
         order.status = "PARTIAL"
 
+    db.add(models.PurchaseOrderReceipt(
+        purchase_order_id=order.id,
+        quantity=qty
+    ))
+
     db.add(models.Transaction(
         product_code=order.product_code,
         quantity=qty,
@@ -203,6 +222,11 @@ def receive_all(order_id: int, db: Session = Depends(get_db)):
 
     order.received_quantity = (order.received_quantity or 0) + remaining
     order.status = "DONE"
+
+    db.add(models.PurchaseOrderReceipt(
+        purchase_order_id=order.id,
+        quantity=remaining
+    ))
 
     db.add(models.Transaction(
         product_code=order.product_code,

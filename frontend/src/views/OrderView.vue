@@ -4,6 +4,7 @@ import api from "../api";
 
 const orders = ref([]);
 const purchaseOrders = ref([]);
+const purchaseReceipts = ref([]);
 const products = ref([]);
 const companies = ref([]);
 const boms = ref([]);
@@ -117,6 +118,7 @@ const buildCodeOptions = (keyword) => {
 const loadAll = async () => {
   const o = await api.get("/orders/");
   const po = await api.get("/purchase-orders/");
+  const pr = await api.get("/purchase-orders/receipts");
   const p = await api.get("/products/");
   const c = await api.get("/companies/");
   const b = await api.get("/bom/");
@@ -124,6 +126,7 @@ const loadAll = async () => {
 
   orders.value = o.data;
   purchaseOrders.value = po.data;
+  purchaseReceipts.value = pr.data;
   products.value = p.data.map((item) => ({
     ...item,
     code: item.new_code || item.code || "",
@@ -495,6 +498,49 @@ const purchaseBatches = computed(() => {
   return Array.from(map.values()).sort((a, b) => (b.batch_id || 0) - (a.batch_id || 0));
 });
 
+const formatOrderTime = (dateValue) => {
+  if (!dateValue) return "-";
+  const raw = String(dateValue).trim();
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const withTimezone = /[zZ]|[+\-]\d{2}:\d{2}$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const date = new Date(withTimezone);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  }).format(date);
+};
+
+const receiptMap = computed(() => {
+  const map = new Map();
+  for (const r of purchaseReceipts.value) {
+    if (!map.has(r.purchase_order_id)) {
+      map.set(r.purchase_order_id, []);
+    }
+    map.get(r.purchase_order_id).push(r);
+  }
+  for (const [key, arr] of map.entries()) {
+    arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    map.set(key, arr);
+  }
+  return map;
+});
+
+const showReceipt = ref({});
+
+const toggleReceipt = (id) => {
+  showReceipt.value = {
+    ...showReceipt.value,
+    [id]: !showReceipt.value[id]
+  };
+};
+
 const deleteOrder = async (id) => {
   const ok = window.confirm("주문을 삭제(거부)할까요?");
   if (!ok) return;
@@ -731,6 +777,7 @@ const deletePurchaseOrder = async (id) => {
               <th class="p-3">주문수량</th>
               <th class="p-3">입고수량</th>
               <th class="p-3">잔여</th>
+              <th class="p-3">최근 입고</th>
               <th class="p-3">납품처</th>
               <th class="p-3">상태</th>
               <th class="p-3">작업</th>
@@ -740,8 +787,9 @@ const deletePurchaseOrder = async (id) => {
           <tbody>
             <template v-for="batch in purchaseBatches" :key="batch.key">
               <tr class="border-t bg-slate-50/70">
-                <td class="p-3 font-semibold" colspan="8">
-                  발주ID #{{ batch.batch_id }} · {{ batch.company }}
+                <td class="p-3 font-semibold" colspan="9">
+                  발주ID #{{ batch.batch_id }} · {{ batch.company }} ·
+                  <span class="text-slate-500">발주시간 {{ formatOrderTime(batch.created_at) }}</span>
                 </td>
               </tr>
 
@@ -759,6 +807,13 @@ const deletePurchaseOrder = async (id) => {
                 <td class="p-3">{{ o.quantity }}</td>
                 <td class="p-3">{{ o.received_quantity || 0 }}</td>
                 <td class="p-3">{{ (o.quantity || 0) - (o.received_quantity || 0) }}</td>
+                <td class="p-3">
+                  {{
+                    (receiptMap.get(o.id) || []).length
+                      ? formatOrderTime((receiptMap.get(o.id) || []).slice(-1)[0].created_at)
+                      : "-"
+                  }}
+                </td>
                 <td class="p-3">{{ o.company }}</td>
 
                 <td class="p-3">
@@ -780,6 +835,12 @@ const deletePurchaseOrder = async (id) => {
                     부분 입고
                   </button>
 
+                  <button
+                    @click="toggleReceipt(o.id)"
+                    class="btn btn-secondary h-8 px-2 text-xs">
+                    입고내역
+                  </button>
+
                   <button v-if="o.status !== 'DONE'"
                     @click="deletePurchaseOrder(o.id)"
                     class="btn btn-danger h-8 px-2 text-xs">
@@ -793,6 +854,22 @@ const deletePurchaseOrder = async (id) => {
                   </button>
                 </td>
 
+              </tr>
+
+              <tr v-if="showReceipt[o.id]" class="border-t bg-white">
+                <td colspan="9" class="p-3">
+                  <div class="text-sm font-semibold mb-2">입고 내역</div>
+                  <div v-if="!(receiptMap.get(o.id) || []).length" class="text-xs text-slate-400">
+                    입고 내역이 없습니다.
+                  </div>
+                  <div v-else class="flex flex-col gap-1">
+                    <div v-for="r in (receiptMap.get(o.id) || [])" :key="r.id"
+                      class="text-sm text-slate-700 flex gap-3">
+                      <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
+                      <span>+{{ r.quantity }}</span>
+                    </div>
+                  </div>
+                </td>
               </tr>
             </template>
           </tbody>
