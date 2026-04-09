@@ -40,3 +40,13 @@ class PurchaseOrderCreate(BaseModel):
 
 class PurchaseReceive(BaseModel):
     quantity: int
+
+
+class PurchaseOrderItemCreate(BaseModel):
+    product_code: str
+    quantity: int
+
+
+class PurchaseOrderBatchCreate(BaseModel):
+    company: str
+    items: list[PurchaseOrderItemCreate]

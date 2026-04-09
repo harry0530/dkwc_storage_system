@@ -63,9 +63,19 @@ class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
 
     id = Column(Integer, primary_key=True)
+    batch_id = Column(Integer, ForeignKey("purchase_order_batches.id"))
     product_code = Column(String)
     quantity = Column(Integer)
     received_quantity = Column(Integer, default=0)
+    company = Column(String)
+    status = Column(String, default="WAIT")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PurchaseOrderBatch(Base):
+    __tablename__ = "purchase_order_batches"
+
+    id = Column(Integer, primary_key=True)
     company = Column(String)
     status = Column(String, default="WAIT")
     created_at = Column(DateTime, default=datetime.utcnow)

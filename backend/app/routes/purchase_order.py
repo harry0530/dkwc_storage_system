@@ -5,40 +5,100 @@ from app import models, schemas
 
 router = APIRouter(prefix="/purchase-orders", tags=["PurchaseOrders"])
 
-
-@router.post("/")
-def create_purchase_order(order: schemas.PurchaseOrderCreate, db: Session = Depends(get_db)):
-    company = order.company
-    input_code = order.product_code
-
-    # 신품번 우선
+def resolve_product(db: Session, input_code: str):
     product = db.query(models.Product).filter(
         models.Product.new_code == input_code
     ).first()
 
-    # 구품번도 허용
     if not product:
         product = db.query(models.Product).filter(
             models.Product.old_code == input_code
         ).first()
 
-    if not product:
-        raise Exception("존재하지 않는 품번입니다")
+    return product
 
-    real_code = product.new_code
+def update_batch_status(db: Session, batch_id: int):
+    if not batch_id:
+        return
 
-    db_order = models.PurchaseOrder(
-        product_code=real_code,
-        quantity=order.quantity,
-        received_quantity=0,
-        company=company
-    )
+    items = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.batch_id == batch_id
+    ).all()
 
-    db.add(db_order)
+    if not items:
+        batch = db.query(models.PurchaseOrderBatch).filter(
+            models.PurchaseOrderBatch.id == batch_id
+        ).first()
+        if batch:
+            db.delete(batch)
+            db.commit()
+        return
+
+    if all(i.status == "DONE" for i in items):
+        status = "DONE"
+    elif any((i.received_quantity or 0) > 0 for i in items):
+        status = "PARTIAL"
+    else:
+        status = "WAIT"
+
+    batch = db.query(models.PurchaseOrderBatch).filter(
+        models.PurchaseOrderBatch.id == batch_id
+    ).first()
+    if batch:
+        batch.status = status
+        db.commit()
+
+@router.post("/batch")
+def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = Depends(get_db)):
+    company = (data.company or "").strip()
+    if not company:
+        raise Exception("납품처가 필요합니다")
+
+    if not data.items:
+        raise Exception("발주 항목이 없습니다")
+
+    batch = models.PurchaseOrderBatch(company=company)
+    db.add(batch)
     db.commit()
-    db.refresh(db_order)
+    db.refresh(batch)
 
-    return db_order
+    created = []
+
+    for item in data.items:
+        input_code = item.product_code
+        product = resolve_product(db, input_code)
+
+        if not product:
+            raise Exception("존재하지 않는 품번입니다")
+
+        real_code = product.new_code
+
+        db_order = models.PurchaseOrder(
+            batch_id=batch.id,
+            product_code=real_code,
+            quantity=item.quantity,
+            received_quantity=0,
+            company=company
+        )
+        db.add(db_order)
+        created.append(db_order)
+
+    db.commit()
+    return {"batch_id": batch.id, "count": len(created)}
+
+
+@router.post("/")
+def create_purchase_order(order: schemas.PurchaseOrderCreate, db: Session = Depends(get_db)):
+    return create_purchase_batch(
+        schemas.PurchaseOrderBatchCreate(
+            company=order.company,
+            items=[schemas.PurchaseOrderItemCreate(
+                product_code=order.product_code,
+                quantity=order.quantity
+            )]
+        ),
+        db
+    )
 
 
 @router.get("/")
@@ -51,16 +111,25 @@ def get_purchase_orders(db: Session = Depends(get_db)):
         product = db.query(models.Product).filter(
             models.Product.new_code == o.product_code
         ).first()
+        batch = None
+        if o.batch_id:
+            batch = db.query(models.PurchaseOrderBatch).filter(
+                models.PurchaseOrderBatch.id == o.batch_id
+            ).first()
 
         result.append({
             "id": o.id,
+            "batch_id": o.batch_id,
             "product_code": o.product_code,
             "product_name": product.name if product else "",
             "quantity": o.quantity,
             "received_quantity": o.received_quantity or 0,
             "company": o.company,
             "status": o.status,
-            "created_at": o.created_at
+            "created_at": o.created_at,
+            "batch_created_at": batch.created_at if batch else o.created_at,
+            "batch_company": batch.company if batch else o.company,
+            "batch_status": batch.status if batch else o.status
         })
 
     return result
@@ -106,6 +175,7 @@ def receive_purchase(order_id: int, data: schemas.PurchaseReceive, db: Session =
     ))
 
     db.commit()
+    update_batch_status(db, order.batch_id)
 
     return {"message": "입고 완료", "received_quantity": order.received_quantity, "status": order.status}
 
@@ -142,6 +212,7 @@ def receive_all(order_id: int, db: Session = Depends(get_db)):
     ))
 
     db.commit()
+    update_batch_status(db, order.batch_id)
 
     return {"message": "전체 입고 완료", "received_quantity": order.received_quantity, "status": order.status}
 
@@ -163,6 +234,7 @@ def undo_purchase(order_id: int, db: Session = Depends(get_db)):
 
     order.status = "WAIT"
     db.commit()
+    update_batch_status(db, order.batch_id)
 
     return {"message": "취소 완료"}
 
@@ -177,7 +249,9 @@ def delete_purchase(order_id: int, db: Session = Depends(get_db)):
     if order.status != "WAIT":
         raise Exception("대기 상태만 삭제 가능")
 
+    batch_id = order.batch_id
     db.delete(order)
     db.commit()
+    update_batch_status(db, batch_id)
 
     return {"message": "삭제 완료"}

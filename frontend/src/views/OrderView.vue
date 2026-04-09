@@ -343,9 +343,13 @@ const createPurchaseOrders = async () => {
     return alert("입력된 발주 항목이 없습니다.");
   }
 
-  for (const payload of payloads) {
-    await api.post("/purchase-orders/", payload);
-  }
+  await api.post("/purchase-orders/batch", {
+    company: companyName,
+    items: payloads.map((payload) => ({
+      product_code: payload.product_code,
+      quantity: payload.quantity
+    }))
+  });
 
   showPurchaseModal.value = false;
   initPurchaseRows();
@@ -469,6 +473,27 @@ const completedPurchaseOrders = computed(() =>
 const visiblePurchaseOrders = computed(() =>
   showPurchaseCompleted.value ? completedPurchaseOrders.value : pendingPurchaseOrders.value
 );
+
+const purchaseBatches = computed(() => {
+  const map = new Map();
+
+  for (const o of visiblePurchaseOrders.value) {
+    const key = o.batch_id ? `batch-${o.batch_id}` : `single-${o.id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        batch_id: o.batch_id || o.id,
+        company: o.batch_company || o.company,
+        created_at: o.batch_created_at || o.created_at,
+        status: o.batch_status || o.status,
+        items: []
+      });
+    }
+    map.get(key).items.push(o);
+  }
+
+  return Array.from(map.values()).sort((a, b) => (b.batch_id || 0) - (a.batch_id || 0));
+});
 
 const deleteOrder = async (id) => {
   const ok = window.confirm("주문을 삭제(거부)할까요?");
@@ -701,7 +726,7 @@ const deletePurchaseOrder = async (id) => {
 
           <thead class="table-head">
             <tr>
-              <th class="p-3">ID</th>
+              <th class="p-3">발주ID</th>
               <th class="p-3">제품</th>
               <th class="p-3">주문수량</th>
               <th class="p-3">입고수량</th>
@@ -713,55 +738,63 @@ const deletePurchaseOrder = async (id) => {
           </thead>
 
           <tbody>
-            <tr v-for="o in visiblePurchaseOrders" :key="o.id" class="border-t">
+            <template v-for="batch in purchaseBatches" :key="batch.key">
+              <tr class="border-t bg-slate-50/70">
+                <td class="p-3 font-semibold" colspan="8">
+                  발주ID #{{ batch.batch_id }} · {{ batch.company }}
+                </td>
+              </tr>
 
-              <td class="p-3">{{ o.id }}</td>
+              <tr v-for="o in batch.items" :key="o.id" class="border-t">
 
-              <td class="p-3">
-                {{ o.product_name }}
-                <div class="text-xs text-gray-400">
-                  {{ o.product_code }}
-                </div>
-              </td>
+                <td class="p-3">{{ batch.batch_id }}</td>
 
-              <td class="p-3">{{ o.quantity }}</td>
-              <td class="p-3">{{ o.received_quantity || 0 }}</td>
-              <td class="p-3">{{ (o.quantity || 0) - (o.received_quantity || 0) }}</td>
-              <td class="p-3">{{ o.company }}</td>
+                <td class="p-3">
+                  {{ o.product_name }}
+                  <div class="text-xs text-gray-400">
+                    {{ o.product_code }}
+                  </div>
+                </td>
 
-              <td class="p-3">
-                <span v-if="o.status === 'WAIT'">대기</span>
-                <span v-else-if="o.status === 'PARTIAL'">부분입고</span>
-                <span v-else>완료</span>
-              </td>
+                <td class="p-3">{{ o.quantity }}</td>
+                <td class="p-3">{{ o.received_quantity || 0 }}</td>
+                <td class="p-3">{{ (o.quantity || 0) - (o.received_quantity || 0) }}</td>
+                <td class="p-3">{{ o.company }}</td>
 
-              <td class="p-3 flex gap-2">
-                <button v-if="o.status === 'WAIT'"
-                  @click="completePurchase(o.id)"
-                  class="btn btn-success h-8 px-2 text-xs">
-                  전체 입고
-                </button>
+                <td class="p-3">
+                  <span v-if="o.status === 'WAIT'">대기</span>
+                  <span v-else-if="o.status === 'PARTIAL'">부분입고</span>
+                  <span v-else>완료</span>
+                </td>
 
-                <button v-if="o.status !== 'DONE'"
-                  @click="partialPurchase(o)"
-                  class="btn btn-secondary h-8 px-2 text-xs">
-                  부분 입고
-                </button>
+                <td class="p-3 flex gap-2">
+                  <button v-if="o.status === 'WAIT'"
+                    @click="completePurchase(o.id)"
+                    class="btn btn-success h-8 px-2 text-xs">
+                    전체 입고
+                  </button>
 
-                <button v-if="o.status !== 'DONE'"
-                  @click="deletePurchaseOrder(o.id)"
-                  class="btn btn-danger h-8 px-2 text-xs">
-                  삭제
-                </button>
+                  <button v-if="o.status !== 'DONE'"
+                    @click="partialPurchase(o)"
+                    class="btn btn-secondary h-8 px-2 text-xs">
+                    부분 입고
+                  </button>
 
-                <button v-if="o.status === 'DONE'"
-                  @click="undoPurchase(o.id)"
-                  class="btn btn-secondary h-8 px-2 text-xs">
-                  취소
-                </button>
-              </td>
+                  <button v-if="o.status !== 'DONE'"
+                    @click="deletePurchaseOrder(o.id)"
+                    class="btn btn-danger h-8 px-2 text-xs">
+                    삭제
+                  </button>
 
-            </tr>
+                  <button v-if="o.status === 'DONE'"
+                    @click="undoPurchase(o.id)"
+                    class="btn btn-secondary h-8 px-2 text-xs">
+                    취소
+                  </button>
+                </td>
+
+              </tr>
+            </template>
           </tbody>
 
         </table>
