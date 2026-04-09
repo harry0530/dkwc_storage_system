@@ -849,18 +849,19 @@ const deferHide = (fn) => {
             <input
               v-model="bomQuickSearch"
               @focus="showBomPartDropdown.quick = true"
-              @blur="deferHide(() => showBomPartDropdown.quick = false)"
               placeholder="단품 간편 검색 (체크로 추가)"
               class="input w-full"
             />
             <div
               v-if="showBomPartDropdown.quick && filteredBomQuickParts.length"
               class="absolute bg-white border w-full z-20 max-h-52 overflow-y-auto shadow rounded-lg"
+              @click.stop
             >
               <div
                 v-for="p in filteredBomQuickParts"
                 :key="`quick-${p.code}`"
                 class="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                @mousedown.prevent
                 @click="toggleBomQuickPart(p)"
               >
                 <input type="checkbox" class="h-4 w-4" :checked="isBomQuickChecked(p.code)" />
