@@ -527,10 +527,11 @@ const receiptMap = computed(() => {
     ? purchaseReceipts.value.filter((r) => r && typeof r === "object")
     : [];
   for (const r of rows) {
-    if (!map.has(r.purchase_order_id)) {
-      map.set(r.purchase_order_id, []);
+    const key = String(r.purchase_order_id);
+    if (!map.has(key)) {
+      map.set(key, []);
     }
-    map.get(r.purchase_order_id).push(r);
+    map.get(key).push(r);
   }
   for (const [key, arr] of map.entries()) {
     arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -541,10 +542,13 @@ const receiptMap = computed(() => {
 
 const showReceipt = ref({});
 
+const receiptKey = (id) => String(id ?? "");
+
 const toggleReceipt = (id) => {
+  const key = receiptKey(id);
   showReceipt.value = {
     ...showReceipt.value,
-    [id]: !showReceipt.value[id]
+    [key]: !showReceipt.value[key]
   };
 };
 
@@ -816,8 +820,8 @@ const deletePurchaseOrder = async (id) => {
                 <td class="p-3">{{ (o?.quantity || 0) - (o?.received_quantity || 0) }}</td>
                 <td class="p-3">
                   {{
-                    (receiptMap.get(o?.id) || []).length
-                      ? formatOrderTime((receiptMap.get(o?.id) || []).slice(-1)[0].created_at)
+                    (receiptMap.get(receiptKey(o?.id)) || []).length
+                      ? formatOrderTime((receiptMap.get(receiptKey(o?.id)) || []).slice(-1)[0].created_at)
                       : "-"
                   }}
                 </td>
@@ -845,7 +849,7 @@ const deletePurchaseOrder = async (id) => {
                   <button
                     @click="o?.id && toggleReceipt(o.id)"
                     class="btn btn-secondary h-8 px-2 text-xs">
-                    입고내역
+                    {{ showReceipt[receiptKey(o?.id)] ? "입고내역 닫기" : "입고내역" }}
                   </button>
 
                   <button v-if="o?.status !== 'DONE'"
@@ -863,14 +867,14 @@ const deletePurchaseOrder = async (id) => {
 
               </tr>
 
-              <tr v-if="o?.id && showReceipt[o.id]" class="border-t bg-white">
+              <tr v-if="o?.id && showReceipt[receiptKey(o.id)]" class="border-t bg-white">
                 <td colspan="9" class="p-3">
                   <div class="text-sm font-semibold mb-2">입고 내역</div>
-                  <div v-if="!(receiptMap.get(o.id) || []).length" class="text-xs text-slate-400">
+                  <div v-if="!(receiptMap.get(receiptKey(o.id)) || []).length" class="text-xs text-slate-400">
                     입고 내역이 없습니다.
                   </div>
                   <div v-else class="flex flex-col gap-1">
-                    <div v-for="r in (receiptMap.get(o.id) || [])" :key="r.id"
+                    <div v-for="r in (receiptMap.get(receiptKey(o.id)) || [])" :key="r.id"
                       class="text-sm text-slate-700 flex gap-3">
                       <span class="w-40">{{ formatOrderTime(r.created_at) }}</span>
                       <span>+{{ r.quantity }}</span>
