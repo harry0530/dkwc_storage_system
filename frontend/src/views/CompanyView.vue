@@ -12,6 +12,8 @@ const phone = ref("");
 const fax = ref("");        // ⭐ 추가
 const address = ref("");
 const companySearch = ref("");
+const sortKey = ref("name");
+const sortDir = ref("asc");
 
 // 수정
 const editingCompanyId = ref("");
@@ -71,6 +73,45 @@ const filteredCompanies = computed(() => {
     (c.address || "").toLowerCase().includes(keyword)
   );
 });
+
+const compareText = (a, b) => {
+  const aa = (a || "").toString();
+  const bb = (b || "").toString();
+  return aa.localeCompare(bb, "ko", { sensitivity: "base" });
+};
+
+const getSortValue = (c, key) => {
+  if (!c) return "";
+  if (key === "name") return c.name;
+  if (key === "email") return c.email;
+  if (key === "phone") return c.phone;
+  if (key === "fax") return c.fax;
+  if (key === "address") return c.address;
+  return "";
+};
+
+const sortedCompanies = computed(() => {
+  const base = [...filteredCompanies.value];
+  const dir = sortDir.value === "asc" ? 1 : -1;
+  const key = sortKey.value;
+  return base.sort((a, b) => {
+    return compareText(getSortValue(a, key), getSortValue(b, key)) * dir;
+  });
+});
+
+const toggleSort = (key) => {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === "asc" ? "desc" : "asc";
+  } else {
+    sortKey.value = key;
+    sortDir.value = "asc";
+  }
+};
+
+const sortIndicator = (key) => {
+  if (sortKey.value !== key) return "";
+  return sortDir.value === "asc" ? "▲" : "▼";
+};
 
 const startEditCompany = (c) => {
   editingCompanyId.value = String(c.id);
@@ -186,17 +227,17 @@ onMounted(loadCompanies);
 
         <thead class="table-head">
           <tr>
-            <th class="p-3">회사명</th>
-            <th class="p-3">이메일</th>
-            <th class="p-3">전화번호</th>
-            <th class="p-3">팩스</th>
-            <th class="p-3">주소</th>
+            <th class="p-3 cursor-pointer select-none" @click="toggleSort('name')">회사명 {{ sortIndicator('name') }}</th>
+            <th class="p-3 cursor-pointer select-none" @click="toggleSort('email')">이메일 {{ sortIndicator('email') }}</th>
+            <th class="p-3 cursor-pointer select-none" @click="toggleSort('phone')">전화번호 {{ sortIndicator('phone') }}</th>
+            <th class="p-3 cursor-pointer select-none" @click="toggleSort('fax')">팩스 {{ sortIndicator('fax') }}</th>
+            <th class="p-3 cursor-pointer select-none" @click="toggleSort('address')">주소 {{ sortIndicator('address') }}</th>
             <th class="p-3">관리</th>
           </tr>
         </thead>
 
         <tbody>
-          <template v-for="c in filteredCompanies" :key="c.id">
+          <template v-for="c in sortedCompanies" :key="c.id">
             <tr class="border-t hover:bg-gray-50">
 
             <template v-if="editingCompanyId === String(c.id)">
