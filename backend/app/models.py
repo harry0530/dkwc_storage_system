@@ -65,6 +65,7 @@ class PurchaseOrder(Base):
     id = Column(Integer, primary_key=True)
     product_code = Column(String)
     quantity = Column(Integer)
+    received_quantity = Column(Integer, default=0)
     company = Column(String)
     status = Column(String, default="WAIT")
     created_at = Column(DateTime, default=datetime.utcnow)

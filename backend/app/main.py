@@ -41,6 +41,18 @@ def ensure_company_email_column():
             pass
 
 
+def ensure_purchase_order_columns():
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS received_quantity INTEGER DEFAULT 0")
+            )
+    else:
+        # SQLite 등은 스키마 재생성 시 반영됨
+        pass
+
+
 if os.getenv("RESET_DB") == "1":
     db_url = str(engine.url)
     if db_url.startswith("postgresql"):
@@ -51,6 +63,7 @@ if os.getenv("RESET_DB") == "1":
         Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 ensure_company_email_column()
+ensure_purchase_order_columns()
 
 protected = [Depends(verify_firebase_token)]
 

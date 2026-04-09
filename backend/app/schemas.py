@@ -36,3 +36,7 @@ class PurchaseOrderCreate(BaseModel):
     product_code: str
     quantity: int
     company: str
+
+
+class PurchaseReceive(BaseModel):
+    quantity: int

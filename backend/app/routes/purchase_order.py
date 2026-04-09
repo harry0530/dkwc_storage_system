@@ -30,6 +30,7 @@ def create_purchase_order(order: schemas.PurchaseOrderCreate, db: Session = Depe
     db_order = models.PurchaseOrder(
         product_code=real_code,
         quantity=order.quantity,
+        received_quantity=0,
         company=company
     )
 
@@ -56,6 +57,7 @@ def get_purchase_orders(db: Session = Depends(get_db)):
             "product_code": o.product_code,
             "product_name": product.name if product else "",
             "quantity": o.quantity,
+            "received_quantity": o.received_quantity or 0,
             "company": o.company,
             "status": o.status,
             "created_at": o.created_at
@@ -64,8 +66,8 @@ def get_purchase_orders(db: Session = Depends(get_db)):
     return result
 
 
-@router.post("/complete/{order_id}")
-def complete_purchase(order_id: int, db: Session = Depends(get_db)):
+@router.post("/receive/{order_id}")
+def receive_purchase(order_id: int, data: schemas.PurchaseReceive, db: Session = Depends(get_db)):
     order = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id == order_id).first()
 
     if not order:
@@ -74,10 +76,79 @@ def complete_purchase(order_id: int, db: Session = Depends(get_db)):
     if order.status == "DONE":
         raise Exception("이미 완료")
 
-    order.status = "DONE"
+    qty = int(data.quantity or 0)
+    if qty <= 0:
+        raise Exception("입고 수량이 올바르지 않습니다")
+
+    remaining = (order.quantity or 0) - (order.received_quantity or 0)
+    if qty > remaining:
+        raise Exception("입고 수량이 잔여 수량보다 많습니다")
+
+    # 재고 반영
+    product = db.query(models.Product).filter(
+        models.Product.new_code == order.product_code
+    ).first()
+    if product:
+        product.quantity = (product.quantity or 0) + qty
+
+    order.received_quantity = (order.received_quantity or 0) + qty
+
+    if order.received_quantity >= order.quantity:
+        order.status = "DONE"
+    else:
+        order.status = "PARTIAL"
+
+    db.add(models.Transaction(
+        product_code=order.product_code,
+        quantity=qty,
+        type="IN",
+        reason="PURCHASE_IN"
+    ))
+
     db.commit()
 
-    return {"message": "완료"}
+    return {"message": "입고 완료", "received_quantity": order.received_quantity, "status": order.status}
+
+
+@router.post("/receive-all/{order_id}")
+def receive_all(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id == order_id).first()
+
+    if not order:
+        raise Exception("주문 없음")
+
+    if order.status == "DONE":
+        raise Exception("이미 완료")
+
+    remaining = (order.quantity or 0) - (order.received_quantity or 0)
+    if remaining <= 0:
+        raise Exception("잔여 수량 없음")
+
+    # 재고 반영
+    product = db.query(models.Product).filter(
+        models.Product.new_code == order.product_code
+    ).first()
+    if product:
+        product.quantity = (product.quantity or 0) + remaining
+
+    order.received_quantity = (order.received_quantity or 0) + remaining
+    order.status = "DONE"
+
+    db.add(models.Transaction(
+        product_code=order.product_code,
+        quantity=remaining,
+        type="IN",
+        reason="PURCHASE_IN"
+    ))
+
+    db.commit()
+
+    return {"message": "전체 입고 완료", "received_quantity": order.received_quantity, "status": order.status}
+
+
+@router.post("/complete/{order_id}")
+def complete_purchase(order_id: int, db: Session = Depends(get_db)):
+    return receive_all(order_id, db)
 
 
 @router.post("/undo/{order_id}")

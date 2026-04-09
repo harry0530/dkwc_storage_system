@@ -375,12 +375,33 @@ const undoProduction = async (id) => {
 };
 
 const completePurchase = async (id) => {
-  await api.post(`/purchase-orders/complete/${id}`);
+  await api.post(`/purchase-orders/receive-all/${id}`);
   loadAll();
 };
 
 const undoPurchase = async (id) => {
   await api.post(`/purchase-orders/undo/${id}`);
+  loadAll();
+};
+
+const partialPurchase = async (order) => {
+  const remaining = (order.quantity || 0) - (order.received_quantity || 0);
+  if (remaining <= 0) return alert("잔여 수량이 없습니다.");
+
+  const input = window.prompt(`부분 입고 수량 입력 (잔여 ${remaining})`, String(remaining));
+  if (!input) return;
+
+  const qty = Number(input);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return alert("수량이 올바르지 않습니다.");
+  }
+  if (qty > remaining) {
+    return alert("잔여 수량보다 클 수 없습니다.");
+  }
+
+  await api.post(`/purchase-orders/receive/${order.id}`, {
+    quantity: qty
+  });
   loadAll();
 };
 
@@ -698,7 +719,9 @@ const deletePurchaseOrder = async (id) => {
             <tr>
               <th class="p-3">ID</th>
               <th class="p-3">제품</th>
-              <th class="p-3">수량</th>
+              <th class="p-3">주문수량</th>
+              <th class="p-3">입고수량</th>
+              <th class="p-3">잔여</th>
               <th class="p-3">납품처</th>
               <th class="p-3">상태</th>
               <th class="p-3">작업</th>
@@ -718,10 +741,13 @@ const deletePurchaseOrder = async (id) => {
               </td>
 
               <td class="p-3">{{ o.quantity }}</td>
+              <td class="p-3">{{ o.received_quantity || 0 }}</td>
+              <td class="p-3">{{ (o.quantity || 0) - (o.received_quantity || 0) }}</td>
               <td class="p-3">{{ o.company }}</td>
 
               <td class="p-3">
                 <span v-if="o.status === 'WAIT'">대기</span>
+                <span v-else-if="o.status === 'PARTIAL'">부분입고</span>
                 <span v-else>완료</span>
               </td>
 
@@ -729,10 +755,16 @@ const deletePurchaseOrder = async (id) => {
                 <button v-if="o.status === 'WAIT'"
                   @click="completePurchase(o.id)"
                   class="btn btn-success h-8 px-2 text-xs">
-                  완료
+                  전체 입고
                 </button>
 
-                <button v-if="o.status === 'WAIT'"
+                <button v-if="o.status !== 'DONE'"
+                  @click="partialPurchase(o)"
+                  class="btn btn-secondary h-8 px-2 text-xs">
+                  부분 입고
+                </button>
+
+                <button v-if="o.status !== 'DONE'"
                   @click="deletePurchaseOrder(o.id)"
                   class="btn btn-danger h-8 px-2 text-xs">
                   삭제
