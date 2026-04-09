@@ -520,7 +520,7 @@ const deferHide = (fn) => {
           <tr>
             <th class="p-3">구품번</th>
             <th class="p-3">신품번</th>
-            <th class="p-3">품명</th>
+            <th class="p-3">제품명</th>
             <th class="p-3">규격</th>
             <th class="p-3">재질</th>
             <th class="p-3">BOM</th>

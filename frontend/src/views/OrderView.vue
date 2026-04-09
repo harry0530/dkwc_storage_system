@@ -601,6 +601,7 @@ const purchaseBatches = computed(() => {
   return Array.from(map.values()).sort((a, b) => (b.batch_id || 0) - (a.batch_id || 0));
 });
 
+
 const formatOrderTime = (dateValue) => {
   if (!dateValue) return "-";
   const raw = String(dateValue).trim();
@@ -636,6 +637,42 @@ const formatOrderDate = (dateValue) => {
     day: "2-digit"
   }).format(date);
 };
+
+const formatBatchId = (dateValue, seq) => {
+  if (!dateValue) return "-";
+  const raw = String(dateValue).trim();
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const withTimezone = /[zZ]|[+\-]\d{2}:\d{2}$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const date = new Date(withTimezone);
+  if (Number.isNaN(date.getTime())) return "-";
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}-${seq}`;
+};
+
+const purchaseBatchIdMap = computed(() => {
+  const list = [...purchaseBatches.value].sort((a, b) => {
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+    return ta - tb;
+  });
+
+  const counter = new Map();
+  const map = new Map();
+
+  for (const batch of list) {
+    const dateKey = formatOrderDate(batch.created_at);
+    const current = (counter.get(dateKey) || 0) + 1;
+    counter.set(dateKey, current);
+    map.set(batchKey(batch), formatBatchId(batch.created_at, current));
+  }
+
+  return map;
+});
 
 const receiptMap = computed(() => {
   const map = new Map();
@@ -914,10 +951,10 @@ const deletePurchaseOrder = async (id) => {
           <tbody>
             <template v-for="batch in purchaseBatches" :key="batch.key">
               <tr class="border-t bg-slate-50/70">
-                <td class="p-3 font-semibold" colspan="9">
+                <td class="p-3 font-semibold" colspan="8">
                   <div class="flex items-center justify-between gap-3">
                     <div>
-                      발주ID #{{ batch.batch_id }} · {{ batch.company }} ·
+                      {{ purchaseBatchIdMap.get(batchKey(batch)) || "-" }} · {{ batch.company }} ·
                       <span class="text-slate-500">발주시간 {{ formatOrderDate(batch.created_at) }}</span>
                     </div>
                     <button class="btn btn-secondary h-8 px-2 text-xs" @click="toggleBatch(batch)">
@@ -929,7 +966,6 @@ const deletePurchaseOrder = async (id) => {
 
               <template v-if="showBatch[batchKey(batch)]">
                 <tr class="table-head">
-                  <th class="p-3">발주ID</th>
                   <th class="p-3">제품</th>
                   <th class="p-3">주문수량</th>
                   <th class="p-3">입고수량</th>
@@ -942,8 +978,6 @@ const deletePurchaseOrder = async (id) => {
 
                 <template v-for="(o, idx) in batch.items" :key="o?.id ?? `${batch.batch_id}-${idx}`">
                 <tr class="border-t">
-
-                  <td class="p-3">{{ batch.batch_id }}</td>
 
                   <td class="p-3">
                     {{ o?.product_name || "-" }}
@@ -1011,7 +1045,7 @@ const deletePurchaseOrder = async (id) => {
                 </tr>
 
                 <tr v-if="o?.id && showReceipt[receiptKey(o.id)]" class="border-t bg-white">
-                  <td colspan="9" class="p-3">
+                  <td colspan="8" class="p-3">
                     <div class="text-sm font-semibold mb-2">입고 내역</div>
                     <div v-if="!(receiptMap.get(receiptKey(o.id)) || []).length" class="text-xs text-slate-400">
                       입고 내역이 없습니다.
