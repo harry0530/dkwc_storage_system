@@ -33,6 +33,14 @@ const showNameDropdown = ref(false);
 const showCreateCodeDropdown = ref(false);
 const showCreateNameDropdown = ref(false);
 const finishedUploadFile = ref(null);
+const showBomModal = ref(false);
+const bomParentInput = ref("");
+const bomParentCode = ref("");
+const bomPartInput = ref("");
+const bomPartCode = ref("");
+const bomQty = ref("");
+const showBomParentDropdown = ref(false);
+const showBomPartDropdown = ref(false);
 
 // 완제품 품번 구성 (1 / 01 / M - S)
 const finishedFirst = ref("1");
@@ -62,6 +70,8 @@ const closeAllDropdowns = () => {
   showNameDropdown.value = false;
   showCreateCodeDropdown.value = false;
   showCreateNameDropdown.value = false;
+  showBomParentDropdown.value = false;
+  showBomPartDropdown.value = false;
   showDropdown.value = {};
 };
 
@@ -212,6 +222,76 @@ const selectPart = (parent_code, code) => {
   (bomInput.value[parent_code] ||= {}).child = code;
   searchInput.value[parent_code] = code;
   showDropdown.value[parent_code] = false;
+};
+
+const filteredBomParents = computed(() => {
+  const keyword = (bomParentInput.value || "").trim().toLowerCase();
+  return products.value.filter(p =>
+    p.type === "FINISHED" &&
+    (!keyword || (p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+  );
+});
+
+const filteredBomParts = computed(() => {
+  const keyword = (bomPartInput.value || "").trim().toLowerCase();
+  return products.value.filter(p =>
+    p.type === "PART" &&
+    (!keyword || (p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+  );
+});
+
+const selectBomParent = (p) => {
+  bomParentCode.value = p.code;
+  bomParentInput.value = `${p.name} (${p.code})`;
+  showBomParentDropdown.value = false;
+};
+
+const selectBomPart = (p) => {
+  bomPartCode.value = p.code;
+  bomPartInput.value = `${p.name} (${p.code})`;
+  showBomPartDropdown.value = false;
+};
+
+const resetBomModal = () => {
+  bomParentInput.value = "";
+  bomParentCode.value = "";
+  bomPartInput.value = "";
+  bomPartCode.value = "";
+  bomQty.value = "";
+  showBomParentDropdown.value = false;
+  showBomPartDropdown.value = false;
+};
+
+const resolveBomCode = (raw, type) => {
+  const value = (raw || "").trim();
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  const found = products.value.find(p =>
+    p.type === type &&
+    ((p.code || "").toLowerCase() === lower ||
+      (p.name || "").toLowerCase() === lower)
+  );
+  return found ? found.code : value;
+};
+
+const saveBomModal = async () => {
+  const parentCode = bomParentCode.value || resolveBomCode(bomParentInput.value, "FINISHED");
+  const partCode = bomPartCode.value || resolveBomCode(bomPartInput.value, "PART");
+  const qty = Number(bomQty.value);
+
+  if (!parentCode || !partCode || !qty) {
+    return alert("완제품/부품/수량을 모두 입력하세요.");
+  }
+
+  await api.post("/bom/", {
+    parent_code: parentCode,
+    child_code: partCode,
+    quantity: qty
+  });
+
+  resetBomModal();
+  showBomModal.value = false;
+  loadData();
 };
 
 const toggleBOM = (code) => {
@@ -444,6 +524,7 @@ const deferHide = (fn) => {
       <div class="p-3 flex gap-2 items-center flex-wrap">
         <input type="file" @change="onFinishedFileChange" class="input w-72" />
         <button @click="uploadFinishedExcel" class="btn btn-primary">업로드</button>
+        <button @click="showBomModal = true" class="btn btn-secondary">BOM 등록</button>
       </div>
     </div>
 
@@ -649,6 +730,77 @@ const deferHide = (fn) => {
         class="p-4 text-sm text-gray-500"
       >
         검색 결과가 없습니다.
+      </div>
+    </div>
+
+    <!-- BOM 등록 모달 -->
+    <div v-if="showBomModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="showBomModal = false"></div>
+      <div class="relative bg-white w-[90vw] max-w-xl rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="font-semibold">BOM 등록</div>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-secondary" @click="showBomModal = false">닫기</button>
+            <button class="btn btn-primary" @click="saveBomModal">저장</button>
+          </div>
+        </div>
+        <div class="p-4 flex flex-col gap-3">
+          <div class="relative" @click.stop>
+            <input
+              v-model="bomParentInput"
+              @input="showBomParentDropdown = true"
+              @focus="showBomParentDropdown = true"
+              @blur="deferHide(() => showBomParentDropdown = false)"
+              placeholder="완제품 검색 (품번/제품명)"
+              class="input w-full"
+            />
+            <div
+              v-if="showBomParentDropdown && filteredBomParents.length"
+              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="p in filteredBomParents"
+                :key="`bom-parent-${p.code}`"
+                @click="selectBomParent(p)"
+                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+              >
+                {{ p.name }} ({{ p.code }})
+              </div>
+            </div>
+          </div>
+
+          <div class="relative" @click.stop>
+            <input
+              v-model="bomPartInput"
+              @input="showBomPartDropdown = true"
+              @focus="showBomPartDropdown = true"
+              @blur="deferHide(() => showBomPartDropdown = false)"
+              placeholder="부품 검색 (품번/제품명)"
+              class="input w-full"
+            />
+            <div
+              v-if="showBomPartDropdown && filteredBomParts.length"
+              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="p in filteredBomParts"
+                :key="`bom-part-${p.code}`"
+                @click="selectBomPart(p)"
+                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+              >
+                {{ p.name }} ({{ p.code }})
+              </div>
+            </div>
+          </div>
+
+          <input
+            v-model="bomQty"
+            type="number"
+            min="1"
+            placeholder="수량"
+            class="input w-full"
+          />
+        </div>
       </div>
     </div>
 
