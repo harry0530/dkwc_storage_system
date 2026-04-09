@@ -493,8 +493,14 @@ const completePurchase = async (id) => {
 };
 
 const undoPurchase = async (id) => {
-  await api.post(`/purchase-orders/undo/${id}`);
-  loadAll();
+  try {
+    await api.post(`/purchase-orders/undo/${id}`);
+    showPurchaseCompleted.value = false;
+    await loadAll();
+    alert("취소 완료: 대기목록으로 이동했습니다.");
+  } catch (err) {
+    alert("취소 실패");
+  }
 };
 
 const partialPurchase = async (order) => {
@@ -1069,6 +1075,7 @@ const deletePurchaseOrder = async (id) => {
             <div class="relative">
               <input
                 v-model="editPurchase.codeInput"
+                @input="editPurchaseDropdown = true"
                 @focus="editPurchaseDropdown = true"
                 @blur="setTimeout(() => editPurchaseDropdown = false, 200)"
                 placeholder="품번/품명"
@@ -1078,7 +1085,8 @@ const deletePurchaseOrder = async (id) => {
                 class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
                 <div v-for="a in buildCodeOptions(editPurchase.codeInput)"
                   :key="a.key"
-                  @click="editPurchase.codeInput = a.code"
+                  @mousedown.prevent
+                  @click="editPurchase.codeInput = a.code; editPurchaseDropdown = false"
                   class="p-2 hover:bg-slate-100 cursor-pointer">
                   {{ a.label }}
                 </div>
