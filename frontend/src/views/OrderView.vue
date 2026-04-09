@@ -278,12 +278,22 @@ const openPurchaseModal = () => {
   }
 };
 
-const addPurchaseRow = () => {
-  purchaseRows.value.push({
-    codeInput: "",
-    selectedCode: "",
-    quantity: ""
-  });
+const addPurchaseRows = (count) => {
+  const n = Number(count);
+  if (!Number.isFinite(n) || n <= 0) return;
+  for (let i = 0; i < n; i += 1) {
+    purchaseRows.value.push({
+      codeInput: "",
+      selectedCode: "",
+      quantity: ""
+    });
+  }
+};
+
+const addPurchaseRowsPrompt = () => {
+  const input = window.prompt("몇 줄 추가할까요?", "1");
+  if (!input) return;
+  addPurchaseRows(Number(input));
 };
 
 const filteredPurchaseRowCodes = (row) => buildCodeOptions(row.codeInput);
@@ -1146,12 +1156,12 @@ const deletePurchaseOrder = async (id) => {
               </div>
             </div>
 
-            <div class="flex items-center justify-between pt-2">
-              <button class="btn btn-secondary" @click="addPurchaseRow">
-                줄 추가
-              </button>
-              <div class="text-xs text-slate-500">기본 10줄 제공</div>
-            </div>
+          <div class="flex items-center justify-between pt-2">
+            <button class="btn btn-secondary" @click="addPurchaseRowsPrompt">
+              줄 추가
+            </button>
+            <div class="text-xs text-slate-500">기본 10줄 제공</div>
+          </div>
           </div>
         </div>
       </div>

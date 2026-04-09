@@ -37,6 +37,7 @@ const showBomModal = ref(false);
 const bomParentInput = ref("");
 const bomParentCode = ref("");
 const bomRows = ref([]);
+const bomQuickSearch = ref("");
 const showBomParentDropdown = ref(false);
 const showBomPartDropdown = ref({});
 
@@ -269,16 +270,62 @@ const selectBomPart = (index, p) => {
   showBomPartDropdown.value[index] = false;
 };
 
+const filteredBomQuickParts = computed(() => {
+  const keyword = (bomQuickSearch.value || "").trim().toLowerCase();
+  if (!keyword) return [];
+  return products.value.filter(p =>
+    p.type === "PART" &&
+    ((p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+  );
+});
+
+const isBomQuickChecked = (code) => {
+  return bomRows.value.some((row) => row.partCode === code);
+};
+
+const toggleBomQuickPart = (p) => {
+  const exists = isBomQuickChecked(p.code);
+  if (exists) {
+    bomRows.value = bomRows.value.filter((row) => row.partCode !== p.code);
+    return;
+  }
+
+  bomRows.value.push({
+    partInput: `${p.name} (${p.code})`,
+    partCode: p.code,
+    qty: ""
+  });
+};
+
 const resetBomModal = () => {
   bomParentInput.value = "";
   bomParentCode.value = "";
   initBomRows();
+  bomQuickSearch.value = "";
   showBomParentDropdown.value = false;
 };
 
 const openBomModal = () => {
   resetBomModal();
   showBomModal.value = true;
+};
+
+const addBomRows = (count) => {
+  const n = Number(count);
+  if (!Number.isFinite(n) || n <= 0) return;
+  for (let i = 0; i < n; i += 1) {
+    bomRows.value.push({
+      partInput: "",
+      partCode: "",
+      qty: ""
+    });
+  }
+};
+
+const addBomRowsPrompt = () => {
+  const input = window.prompt("몇 줄 추가할까요?", "1");
+  if (!input) return;
+  addBomRows(Number(input));
 };
 
 const resolveBomCode = (raw, type) => {
@@ -798,6 +845,30 @@ const deferHide = (fn) => {
             </div>
           </div>
 
+          <div class="relative" @click.stop>
+            <input
+              v-model="bomQuickSearch"
+              @focus="showBomPartDropdown.quick = true"
+              @blur="deferHide(() => showBomPartDropdown.quick = false)"
+              placeholder="단품 간편 검색 (체크로 추가)"
+              class="input w-full"
+            />
+            <div
+              v-if="showBomPartDropdown.quick && filteredBomQuickParts.length"
+              class="absolute bg-white border w-full z-20 max-h-52 overflow-y-auto shadow rounded-lg"
+            >
+              <div
+                v-for="p in filteredBomQuickParts"
+                :key="`quick-${p.code}`"
+                class="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                @click="toggleBomQuickPart(p)"
+              >
+                <input type="checkbox" class="h-4 w-4" :checked="isBomQuickChecked(p.code)" />
+                <span>{{ p.name }} ({{ p.code }})</span>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-[48px_1fr_140px] gap-2 items-center text-xs text-slate-500">
             <div>#</div>
             <div>부품</div>
@@ -843,7 +914,7 @@ const deferHide = (fn) => {
           </div>
 
           <div class="flex items-center justify-between pt-2">
-            <button class="btn btn-secondary" @click="addBomRow">줄 추가</button>
+            <button class="btn btn-secondary" @click="addBomRowsPrompt">줄 추가</button>
             <div class="text-xs text-slate-500">기본 5줄 제공</div>
           </div>
         </div>
