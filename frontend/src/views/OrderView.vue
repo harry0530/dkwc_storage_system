@@ -21,15 +21,14 @@ const quantity = ref("");
 
 const purchaseCompanyInput = ref("");
 const purchaseSelectedCompany = ref("");
-const purchaseCodeInput = ref("");
-const purchaseSelectedCode = ref("");
-const purchaseQuantity = ref("");
+const showPurchaseModal = ref(false);
+const purchaseRows = ref([]);
+const purchaseRowDropdown = ref({});
 
 // 표시
 const displayProduct = ref("");
 const stockWarning = ref("");
 const showCompleted = ref(false);
-const purchaseDisplayProduct = ref("");
 const showPurchaseCompleted = ref(false);
 
 // 견적 이메일
@@ -189,26 +188,6 @@ const updateProductName = () => {
   stockWarning.value = warnings.join(" | ");
 };
 
-const updatePurchaseDisplay = () => {
-  const inputCode = purchaseSelectedCode.value || purchaseCodeInput.value;
-
-  if (!inputCode) {
-    purchaseDisplayProduct.value = "";
-    return;
-  }
-
-  const result = resolveProduct(inputCode);
-  if (!result) {
-    purchaseDisplayProduct.value = "❌ 없는 제품";
-    return;
-  }
-
-  const { product, realCode, fromOld } = result;
-
-  purchaseDisplayProduct.value = fromOld
-    ? `${inputCode} → ${realCode} (${product.name})`
-    : `${realCode} (${product.name})`;
-};
 
 // =====================
 // 회사 자동완성
@@ -245,7 +224,6 @@ const selectPurchaseCompany = (name) => {
   purchaseSelectedCompany.value = name.name || name;
   purchaseCompanyInput.value = name.name || name;
   showPurchaseCompanyDropdown.value = false;
-  updatePurchaseDisplay();
 };
 
 // =====================
@@ -255,9 +233,6 @@ const showCodeDropdown = ref(false);
 
 const filteredCodes = computed(() => buildCodeOptions(codeInput.value));
 
-const showPurchaseCodeDropdown = ref(false);
-const filteredPurchaseCodes = computed(() => buildCodeOptions(purchaseCodeInput.value));
-
 const selectCode = (code) => {
   selectedCode.value = code;
   codeInput.value = code;
@@ -265,12 +240,38 @@ const selectCode = (code) => {
 
   updateProductName();
 };
+const initPurchaseRows = (count = 10) => {
+  purchaseRows.value = Array.from({ length: count }, () => ({
+    codeInput: "",
+    selectedCode: "",
+    quantity: ""
+  }));
+  purchaseRowDropdown.value = {};
+};
 
-const selectPurchaseCode = (code) => {
-  purchaseSelectedCode.value = code;
-  purchaseCodeInput.value = code;
-  showPurchaseCodeDropdown.value = false;
-  updatePurchaseDisplay();
+const openPurchaseModal = () => {
+  showPurchaseModal.value = true;
+  if (purchaseRows.value.length === 0) {
+    initPurchaseRows();
+  }
+};
+
+const addPurchaseRow = () => {
+  purchaseRows.value.push({
+    codeInput: "",
+    selectedCode: "",
+    quantity: ""
+  });
+};
+
+const filteredPurchaseRowCodes = (row) => buildCodeOptions(row.codeInput);
+
+const selectPurchaseRowCode = (index, code) => {
+  const row = purchaseRows.value[index];
+  if (!row) return;
+  row.selectedCode = code;
+  row.codeInput = code;
+  purchaseRowDropdown.value[index] = false;
 };
 
 // =====================
@@ -308,29 +309,46 @@ const createOrder = async () => {
 };
 
 // =====================
-// 발주 생성
+// 발주 생성 (모달, 다중 품목)
 // =====================
-const createPurchaseOrder = async () => {
+const createPurchaseOrders = async () => {
   const companyName = purchaseSelectedCompany.value || purchaseCompanyInput.value;
-  if (!companyName || !purchaseQuantity.value) return alert("납품처/수량을 입력하세요.");
+  if (!companyName) return alert("납품처를 입력하세요.");
 
-  const result = resolveProduct(purchaseSelectedCode.value || purchaseCodeInput.value);
-  if (!result) return alert("품번/품명을 확인하세요.");
-  const finalCode = result.realCode;
+  const payloads = [];
 
-  await api.post("/purchase-orders/", {
-    product_code: finalCode,
-    quantity: Number(purchaseQuantity.value),
-    company: companyName
-  });
+  for (let i = 0; i < purchaseRows.value.length; i += 1) {
+    const row = purchaseRows.value[i];
+    const qty = Number(row.quantity || 0);
+    const rawCode = row.selectedCode || row.codeInput;
 
-  purchaseCompanyInput.value = "";
-  purchaseCodeInput.value = "";
-  purchaseSelectedCode.value = "";
-  purchaseSelectedCompany.value = "";
-  purchaseQuantity.value = "";
-  purchaseDisplayProduct.value = "";
+    if (!rawCode && !qty) continue;
+    if (!rawCode || qty <= 0) {
+      return alert(`발주 ${i + 1}행의 품번/수량을 확인하세요.`);
+    }
 
+    const result = resolveProduct(rawCode);
+    if (!result) {
+      return alert(`발주 ${i + 1}행의 품번/품명을 확인하세요.`);
+    }
+
+    payloads.push({
+      product_code: result.realCode,
+      quantity: qty,
+      company: companyName
+    });
+  }
+
+  if (payloads.length === 0) {
+    return alert("입력된 발주 항목이 없습니다.");
+  }
+
+  for (const payload of payloads) {
+    await api.post("/purchase-orders/", payload);
+  }
+
+  showPurchaseModal.value = false;
+  initPurchaseRows();
   loadAll();
 };
 
@@ -665,72 +683,17 @@ const deletePurchaseOrder = async (id) => {
 
       <div class="flex items-center justify-between mb-6">
         <h2 class="page-title">📦 발주 관리</h2>
-        <button
-          @click="showPurchaseCompleted = !showPurchaseCompleted"
-          class="btn btn-secondary"
-        >
-          {{ showPurchaseCompleted ? "대기목록 보기" : "완료내역 보기" }}
-        </button>
-      </div>
-
-      <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap overflow-visible">
-
-        <div class="relative w-40">
-          <input
-            v-model="purchaseCompanyInput"
-            @input="updatePurchaseDisplay"
-            @focus="showPurchaseCompanyDropdown = true"
-            @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
-            placeholder="납품처"
-            class="input w-full"
-          />
-          <div v-if="showPurchaseCompanyDropdown"
-            class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
-            <div v-for="c in filteredPurchaseCompanies"
-              :key="c.id"
-              @click="selectPurchaseCompany(c)"
-              class="p-2 hover:bg-slate-100 cursor-pointer">
-              {{ c.name }}
-            </div>
-          </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="showPurchaseCompleted = !showPurchaseCompleted"
+            class="btn btn-secondary"
+          >
+            {{ showPurchaseCompleted ? "대기목록 보기" : "완료내역 보기" }}
+          </button>
+          <button class="btn btn-primary" @click="openPurchaseModal">
+            발주 등록
+          </button>
         </div>
-
-        <div class="relative w-40">
-          <input
-            v-model="purchaseCodeInput"
-            @input="updatePurchaseDisplay"
-            @focus="showPurchaseCodeDropdown = true"
-            @blur="setTimeout(() => showPurchaseCodeDropdown = false, 200)"
-            placeholder="품번"
-            class="input w-full"
-          />
-          <div v-if="showPurchaseCodeDropdown"
-            class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
-            <div v-for="a in filteredPurchaseCodes"
-              :key="a.key"
-              @click="selectPurchaseCode(a.code)"
-              class="p-2 hover:bg-slate-100 cursor-pointer">
-              {{ a.label }}
-            </div>
-          </div>
-        </div>
-
-        <div class="text-sm text-gray-700 w-64">
-          {{ purchaseDisplayProduct }}
-        </div>
-
-        <input v-model="purchaseQuantity"
-          @input="updatePurchaseDisplay"
-          type="number"
-          min="1"
-          placeholder="수량"
-          class="input w-24" />
-
-        <button @click="createPurchaseOrder"
-          class="btn btn-primary">
-          발주 등록
-        </button>
-
       </div>
 
       <div class="panel overflow-hidden">
@@ -802,6 +765,89 @@ const deletePurchaseOrder = async (id) => {
           </tbody>
 
         </table>
+      </div>
+
+      <!-- 발주 등록 모달 -->
+      <div v-if="showPurchaseModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="showPurchaseModal = false"></div>
+        <div class="relative bg-white w-[95vw] max-w-5xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b">
+            <div class="font-semibold">발주 등록</div>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-secondary" @click="showPurchaseModal = false">닫기</button>
+              <button class="btn btn-primary" @click="createPurchaseOrders">저장</button>
+            </div>
+          </div>
+          <div class="p-4 flex flex-col gap-3 overflow-y-auto max-h-[75vh]">
+            <div class="relative w-64">
+              <input
+                v-model="purchaseCompanyInput"
+                @focus="showPurchaseCompanyDropdown = true"
+                @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
+                placeholder="납품처"
+                class="input w-full"
+              />
+              <div v-if="showPurchaseCompanyDropdown"
+                class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
+                <div v-for="c in filteredPurchaseCompanies"
+                  :key="c.id"
+                  @click="selectPurchaseCompany(c)"
+                  class="p-2 hover:bg-slate-100 cursor-pointer">
+                  {{ c.name }}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-[48px_220px_120px_1fr] gap-2 items-center text-xs text-slate-500">
+              <div>#</div>
+              <div>품번/품명</div>
+              <div>수량</div>
+              <div>제품명</div>
+            </div>
+
+            <div v-for="(row, idx) in purchaseRows" :key="idx" class="grid grid-cols-[48px_220px_120px_1fr] gap-2 items-center">
+              <div class="text-xs text-slate-500">{{ idx + 1 }}</div>
+
+              <div class="relative">
+                <input
+                  v-model="row.codeInput"
+                  @focus="purchaseRowDropdown[idx] = true"
+                  @blur="setTimeout(() => purchaseRowDropdown[idx] = false, 200)"
+                  placeholder="품번/품명"
+                  class="input w-full"
+                />
+                <div v-if="purchaseRowDropdown[idx]"
+                  class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
+                  <div v-for="a in filteredPurchaseRowCodes(row)"
+                    :key="a.key"
+                    @click="selectPurchaseRowCode(idx, a.code)"
+                    class="p-2 hover:bg-slate-100 cursor-pointer text-sm">
+                    {{ a.label }}
+                  </div>
+                </div>
+              </div>
+
+              <input
+                v-model="row.quantity"
+                type="number"
+                min="1"
+                placeholder="수량"
+                class="input w-full"
+              />
+
+              <div class="text-sm text-slate-700">
+                {{ resolveProduct(row.selectedCode || row.codeInput)?.product?.name || "-" }}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button class="btn btn-secondary" @click="addPurchaseRow">
+                줄 추가
+              </button>
+              <div class="text-xs text-slate-500">기본 10줄 제공</div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
