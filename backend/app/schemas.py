@@ -8,6 +8,7 @@ class ProductCreate(BaseModel):
     location: str | None = ""
     min_stock: int
     old_code: str | None = ""
+    drawing_number: str | None = ""
     material: str | None = ""
     spec: str | None = ""
     supplier_company_id: int | None = None
