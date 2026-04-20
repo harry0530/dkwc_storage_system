@@ -9,8 +9,7 @@ from app import models, schemas
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
-# 🔥 핵심 수정 부분
-@router.post("/")
+# ?뵦 ?듭떖 ?섏젙 遺遺?@router.post("/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
     code = product.code.strip()
     name = product.name.strip() if product.name else ""
@@ -19,11 +18,12 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         models.Product.new_code == code
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="이미 존재하는 품번")
+        raise HTTPException(status_code=400, detail="?대? 議댁옱?섎뒗 ?덈쾲")
 
     db_product = models.Product(
         old_code=(product.old_code or "").strip(),
         new_code=code,
+        drawing_number=(product.drawing_number or "").strip(),
         name=name,
         type=product.type,
         material=(product.material or "").strip(),
@@ -44,7 +44,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
 @router.post("/import-parts")
 def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename:
-        raise HTTPException(status_code=400, detail="파일이 없습니다")
+        raise HTTPException(status_code=400, detail="?뚯씪???놁뒿?덈떎")
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
@@ -63,8 +63,10 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     def build_header_map(values):
         header_values = [normalize(v) for v in values]
         mapping = {name: idx for idx, name in enumerate(header_values) if name}
-        if "구품번" in mapping and "기존품번" not in mapping:
-            mapping["기존품번"] = mapping["구품번"]
+        if "援ы뭹踰? in mapping and "湲곗〈?덈쾲" not in mapping:
+            mapping["湲곗〈?덈쾲"] = mapping["援ы뭹踰?"]
+        if "도번" in mapping and "drawing_number" not in mapping:
+            mapping["drawing_number"] = mapping["도번"]
         return header_values, mapping
 
     ws = wb.active
@@ -86,12 +88,12 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 header_row = 1
                 break
 
-    if "신품번" not in col:
+    if "?좏뭹踰? not in col:
         for row_idx in range(1, min(ws.max_row, 10) + 1):
             candidate_header, candidate_col = build_header_map(
                 [cell.value for cell in ws[row_idx]]
             )
-            if "신품번" in candidate_col:
+            if "?좏뭹踰? in candidate_col:
                 header = candidate_header
                 col = candidate_col
                 header_row = row_idx
@@ -107,7 +109,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 candidate_header, candidate_col = build_header_map(
                     [cell.value for cell in candidate[row_idx]]
                 )
-                if "신품번" in candidate_col:
+                if "?좏뭹踰? in candidate_col:
                     score = candidate.max_row
                     if best is None or score > best[0]:
                         best = (score, candidate, candidate_header, candidate_col, row_idx)
@@ -115,10 +117,10 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
         if best:
             _, ws, header, col, header_row = best
 
-    required = ["기존품번", "신품번", "품명", "규격", "재질", "재고수량", "최소재고", "보관위치", "발주처"]
+    required = ["湲곗〈?덈쾲", "?좏뭹踰?", "?덈챸", "洹쒓꺽", "?ъ쭏", "?ш퀬?섎웾", "理쒖냼?ш퀬", "蹂닿??꾩튂", "諛쒖＜泥?"]
     for r in required:
         if r not in col:
-            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
+            raise HTTPException(status_code=400, detail=f"?묒? ?뺤떇 ?ㅻ쪟: {r} 而щ읆 ?놁쓬")
 
     created = 0
     updated = 0
@@ -128,15 +130,16 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
         if row and any(value not in (None, "") for value in row):
             rows_total += 1
-        old_code = normalize_code(row[col["기존품번"]])
-        new_code = normalize_code(row[col["신품번"]])
-        name = normalize(row[col["품명"]])
-        spec = normalize(row[col["규격"]])
-        material = normalize(row[col["재질"]])
-        quantity = int(row[col["재고수량"]] or 0)
-        min_stock = int(row[col["최소재고"]] or 0)
-        location = normalize(row[col["보관위치"]])
-        supplier_name = normalize(row[col["발주처"]])
+        old_code = normalize_code(row[col["湲곗〈?덈쾲"]])
+        new_code = normalize_code(row[col["?좏뭹踰?"]])
+        drawing_number = normalize(row[col["drawing_number"]]) if "drawing_number" in col else ""
+        name = normalize(row[col["?덈챸"]])
+        spec = normalize(row[col["洹쒓꺽"]])
+        material = normalize(row[col["?ъ쭏"]])
+        quantity = int(row[col["?ш퀬?섎웾"]] or 0)
+        min_stock = int(row[col["理쒖냼?ш퀬"]] or 0)
+        location = normalize(row[col["蹂닿??꾩튂"]])
+        supplier_name = normalize(row[col["諛쒖＜泥?"]])
 
         if not new_code:
             skipped += 1
@@ -160,6 +163,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
         if product:
             product.old_code = old_code
+            product.drawing_number = drawing_number
             product.name = name
             product.type = "PART"
             product.material = material
@@ -173,6 +177,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
             db.add(models.Product(
                 old_code=old_code,
                 new_code=new_code,
+                drawing_number=drawing_number,
                 name=name,
                 type="PART",
                 material=material,
@@ -207,7 +212,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 @router.post("/import-finished")
 def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename:
-        raise HTTPException(status_code=400, detail="파일이 없습니다")
+        raise HTTPException(status_code=400, detail="?뚯씪???놁뒿?덈떎")
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
@@ -216,22 +221,23 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
     header = [cell.value for cell in ws[1]]
     col = {name: idx for idx, name in enumerate(header)}
 
-    required = ["기존품번", "신품번", "품명", "규격", "재질", "BOM", "발주처"]
+    required = ["湲곗〈?덈쾲", "?좏뭹踰?", "?덈챸", "洹쒓꺽", "?ъ쭏", "BOM", "諛쒖＜泥?"]
     for r in required:
         if r not in col:
-            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
+            raise HTTPException(status_code=400, detail=f"?묒? ?뺤떇 ?ㅻ쪟: {r} 而щ읆 ?놁쓬")
 
     created = 0
     updated = 0
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = str(row[col["기존품번"]] or "").strip()
-        new_code = str(row[col["신품번"]] or "").strip()
-        name = str(row[col["품명"]] or "").strip()
-        spec = str(row[col["규격"]] or "").strip()
-        material = str(row[col["재질"]] or "").strip()
+        old_code = str(row[col["湲곗〈?덈쾲"]] or "").strip()
+        new_code = str(row[col["?좏뭹踰?"]] or "").strip()
+        drawing_number = str(row[col["도번"]] or "").strip() if "도번" in col else ""
+        name = str(row[col["?덈챸"]] or "").strip()
+        spec = str(row[col["洹쒓꺽"]] or "").strip()
+        material = str(row[col["?ъ쭏"]] or "").strip()
         bom_text = (row[col["BOM"]] or "").strip()
-        supplier_name = str(row[col["발주처"]] or "").strip()
+        supplier_name = str(row[col["諛쒖＜泥?"]] or "").strip()
 
         if not new_code:
             continue
@@ -254,6 +260,7 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
 
         if product:
             product.old_code = old_code
+            product.drawing_number = drawing_number
             product.name = name
             product.type = "FINISHED"
             product.material = material
@@ -264,6 +271,7 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
             db.add(models.Product(
                 old_code=old_code,
                 new_code=new_code,
+                drawing_number=drawing_number,
                 name=name,
                 type="FINISHED",
                 material=material,
@@ -315,9 +323,9 @@ def delete_product(product_code: str, db: Session = Depends(get_db)):
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="제품 없음")
+        raise HTTPException(status_code=404, detail="?쒗뭹 ?놁쓬")
 
-    # 제품 삭제 시 참조되는 기본 데이터 정리
+    # ?쒗뭹 ??젣 ??李몄“?섎뒗 湲곕낯 ?곗씠???뺣━
     db.query(models.BOM).filter(
         or_(
             models.BOM.parent_code == product_code,
@@ -328,10 +336,10 @@ def delete_product(product_code: str, db: Session = Depends(get_db)):
     db.delete(product)
     db.commit()
 
-    return {"message": "삭제 완료"}
+    return {"message": "??젣 ?꾨즺"}
 
 
-# ⭐ 제품 수정
+# 狩??쒗뭹 ?섏젙
 @router.put("/{product_code}")
 def update_product(product_code: str, data: dict, db: Session = Depends(get_db)):
     product = db.query(models.Product).filter(
@@ -339,9 +347,10 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="제품 없음")
+        raise HTTPException(status_code=404, detail="?쒗뭹 ?놁쓬")
 
     product.old_code = data.get("old_code", product.old_code)
+    product.drawing_number = data.get("drawing_number", product.drawing_number)
     product.name = data.get("name", product.name)
     product.type = data.get("type", product.type)
     product.material = data.get("material", product.material)
