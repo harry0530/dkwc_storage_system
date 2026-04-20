@@ -1062,7 +1062,7 @@ const refreshUpload = async () => {
         class="btn btn-secondary"
         @click="showAllPartsModal = true"
       >
-        전체 단품 목록
+        전체정보 보기
       </button>
 
       </div>
@@ -1073,7 +1073,7 @@ const refreshUpload = async () => {
       <div class="absolute inset-0 bg-black/40" @click="showAllPartsModal = false"></div>
       <div class="relative bg-white w-[90vw] max-w-5xl max-h-[80vh] rounded-2xl shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b">
-          <div class="font-semibold">전체 단품 목록 ({{ allPartsSorted.length }})</div>
+          <div class="font-semibold">전체 단품 정보 ({{ allPartsSorted.length }})</div>
           <button class="btn btn-secondary" @click="showAllPartsModal = false">닫기</button>
         </div>
         <div class="p-3 overflow-auto max-h-[70vh]">
@@ -1207,9 +1207,6 @@ const refreshUpload = async () => {
             <th class="p-3">재질</th>
             <th class="p-3">규격</th>
             <th class="p-3">현재 재고</th>
-            <th class="p-3">최소 재고</th>
-            <th class="p-3">보관위치</th>
-            <th class="p-3">납품처</th>
             <th class="p-3">작업</th>
           </tr>
         </thead>
@@ -1241,12 +1238,6 @@ const refreshUpload = async () => {
                 :class="item.quantity < item.min_stock ? 'text-red-500' : 'text-blue-600'">
               {{ item.quantity }}
             </td>
-
-            <td class="p-3">{{ item.min_stock }}</td>
-
-            <td class="p-3">{{ item.location || "-" }}</td>
-
-            <td class="p-3">{{ getCompanyName(item.supplier_company_id) }}</td>
 
             <td class="p-3">
               <div class="flex gap-2">
