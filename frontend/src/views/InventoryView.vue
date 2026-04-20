@@ -28,6 +28,7 @@ const quantity = ref("");
 const showAddNameDropdown = ref(false);
 const showAddCodeDropdown = ref(false);
 const oldCodeInput = ref("");
+const drawingNumberInput = ref("");
 const materialInput = ref("");
 const specInput = ref("");
 const supplierCompanyId = ref("");
@@ -42,6 +43,7 @@ const uploadInputRef = ref(null);
 const editingCode = ref("");
 const editName = ref("");
 const editOldCode = ref("");
+const editDrawingNumber = ref("");
 const editMaterial = ref("");
 const editSpec = ref("");
 const editLocation = ref("");
@@ -71,6 +73,7 @@ const loadInventory = async () => {
     ...item,
     new_code: item.new_code || item.code || "",
     old_code: item.old_code || "",
+    drawing_number: item.drawing_number || "",
     name: item.name || "",
     material: item.material || "",
     spec: item.spec || "",
@@ -93,6 +96,7 @@ const loadProducts = async () => {
   products.value = res.data.map((item) => ({
     ...item,
     code: item.new_code || item.code || "",
+    drawing_number: item.drawing_number || "",
     old_code: item.old_code || ""
   }));
 };
@@ -176,6 +180,7 @@ const addStock = async () => {
     await api.post("/products/", {
       code: productCode,
       old_code: oldCodeInput.value.trim(),
+      drawing_number: drawingNumberInput.value.trim(),
       name: nameValue,
       type: "PART",
       material: materialInput.value.trim(),
@@ -194,6 +199,7 @@ const addStock = async () => {
 
   code.value = "";
   oldCodeInput.value = "";
+  drawingNumberInput.value = "";
   nameInput.value = "";
   materialInput.value = "";
   specInput.value = "";
@@ -242,6 +248,7 @@ const startEdit = (item) => {
   editingCode.value = item.new_code || item.code || "";
   editName.value = item.name || "";
   editOldCode.value = item.old_code || "";
+  editDrawingNumber.value = item.drawing_number || "";
   editMaterial.value = item.material || "";
   editSpec.value = item.spec || "";
   editLocation.value = item.location || "";
@@ -258,6 +265,7 @@ const cancelEdit = () => {
   editingCode.value = "";
   editName.value = "";
   editOldCode.value = "";
+  editDrawingNumber.value = "";
   editMaterial.value = "";
   editSpec.value = "";
   editLocation.value = "";
@@ -273,6 +281,7 @@ const saveEdit = async () => {
 
   await api.put(`/products/${editingCode.value}`, {
     old_code: editOldCode.value,
+    drawing_number: editDrawingNumber.value,
     name: editName.value,
     material: editMaterial.value,
     spec: editSpec.value,
@@ -509,6 +518,7 @@ const exportInventoryExcel = () => {
     .map((item) => ({
       기존품번: item.old_code || "",
       신품번: item.new_code || item.code || "",
+      도번: item.drawing_number || "",
       품명: item.name || "",
       규격: item.spec || "",
       재질: item.material || "",
@@ -784,6 +794,10 @@ const refreshUpload = async () => {
                     placeholder="구품번"
                     class="input w-32" />
 
+                  <input v-model="drawingNumberInput"
+                    placeholder="도번"
+                    class="input w-32" />
+
                   <div class="relative w-40" @click.stop>
                     <input
                       v-model="code"
@@ -1040,6 +1054,7 @@ const refreshUpload = async () => {
               <tr>
                 <th class="p-2">구품번</th>
                 <th class="p-2">신품번</th>
+                <th class="p-2">도번</th>
                 <th class="p-2">품명</th>
                 <th class="p-2">재질</th>
                 <th class="p-2">규격</th>
@@ -1047,13 +1062,14 @@ const refreshUpload = async () => {
                 <th class="p-2">최소재고</th>
                 <th class="p-2">보관위치</th>
                 <th class="p-2">납품처</th>
-                <th class="p-2">관리</th>
+                <th class="p-2">작업</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="item in allPartsSorted" :key="`modal-${item.new_code || item.code}`" class="border-t hover:bg-slate-50">
                 <td class="p-2 font-medium">{{ item.old_code || "-" }}</td>
                 <td class="p-2">{{ item.new_code || "-" }}</td>
+                <td class="p-2">{{ item.drawing_number || "-" }}</td>
                 <td class="p-2">{{ item.name || "-" }}</td>
                 <td class="p-2">{{ item.material || "-" }}</td>
                 <td class="p-2">{{ item.spec || "-" }}</td>
@@ -1079,7 +1095,7 @@ const refreshUpload = async () => {
                 </td>
               </tr>
               <tr v-if="allPartsSorted.length === 0">
-                <td colspan="10" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
+                <td colspan="11" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
               </tr>
             </tbody>
           </table>
@@ -1092,6 +1108,8 @@ const refreshUpload = async () => {
       <div class="font-semibold mb-2">재고 정보 수정: {{ editingCode }}</div>
       <div class="flex flex-wrap gap-2 items-center">
         <input v-model="editOldCode" placeholder="구품번"
+          class="input w-32" />
+        <input v-model="editDrawingNumber" placeholder="도번"
           class="input w-32" />
         <input v-model="editName" placeholder="제품명"
           class="input w-40" />
@@ -1156,6 +1174,7 @@ const refreshUpload = async () => {
           <tr>
             <th class="p-3">구품번</th>
             <th class="p-3">신품번</th>
+            <th class="p-3">도번</th>
             <th class="p-3">품명</th>
             <th class="p-3">재질</th>
             <th class="p-3">규격</th>
@@ -1163,7 +1182,7 @@ const refreshUpload = async () => {
             <th class="p-3">최소 재고</th>
             <th class="p-3">보관위치</th>
             <th class="p-3">납품처</th>
-            <th class="p-3">관리</th>
+            <th class="p-3">작업</th>
           </tr>
         </thead>
 
@@ -1181,6 +1200,8 @@ const refreshUpload = async () => {
             </td>
 
             <td class="p-3">{{ item.new_code || "-" }}</td>
+
+            <td class="p-3">{{ item.drawing_number || "-" }}</td>
 
             <td class="p-3">{{ item.name || "-" }}</td>
 
