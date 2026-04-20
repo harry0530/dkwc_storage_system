@@ -58,8 +58,22 @@ def ensure_purchase_order_columns():
                 text("CREATE TABLE IF NOT EXISTS purchase_order_receipts (id SERIAL PRIMARY KEY, purchase_order_id INTEGER, quantity INTEGER, created_at TIMESTAMP DEFAULT NOW())")
             )
     else:
-        # SQLite 등은 스키마 재생성 시 반영됨
-        pass
+        # SQLite ?깆? ?ㅽ궎留??ъ깮????諛섏쁺??        pass
+
+
+def ensure_product_drawing_number_column():
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE products ADD COLUMN IF NOT EXISTS drawing_number TEXT")
+            )
+    else:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE products ADD COLUMN drawing_number TEXT"))
+        except Exception:
+            pass
 
 
 if os.getenv("RESET_DB") == "1":
@@ -73,6 +87,7 @@ if os.getenv("RESET_DB") == "1":
 Base.metadata.create_all(bind=engine)
 ensure_company_email_column()
 ensure_purchase_order_columns()
+ensure_product_drawing_number_column()
 
 protected = [Depends(verify_firebase_token)]
 
