@@ -44,6 +44,7 @@ const editingCode = ref("");
 const editName = ref("");
 const editOldCode = ref("");
 const editDrawingNumber = ref("");
+const editNewCode = ref("");
 const editMaterial = ref("");
 const editSpec = ref("");
 const editLocation = ref("");
@@ -249,6 +250,7 @@ const startEdit = (item) => {
   editName.value = item.name || "";
   editOldCode.value = item.old_code || "";
   editDrawingNumber.value = item.drawing_number || "";
+  editNewCode.value = item.new_code || item.code || "";
   editMaterial.value = item.material || "";
   editSpec.value = item.spec || "";
   editLocation.value = item.location || "";
@@ -266,6 +268,7 @@ const cancelEdit = () => {
   editName.value = "";
   editOldCode.value = "";
   editDrawingNumber.value = "";
+  editNewCode.value = "";
   editMaterial.value = "";
   editSpec.value = "";
   editLocation.value = "";
@@ -301,6 +304,47 @@ const saveEdit = async () => {
 
   cancelEdit();
   loadInventory();
+};
+
+const changeProductCode = async () => {
+  const nextCode = (editNewCode.value || "").trim();
+  if (!editingCode.value) return;
+  if (!nextCode) {
+    alert("새 신품번을 입력하세요.");
+    return;
+  }
+  if (nextCode === editingCode.value) {
+    alert("현재 신품번과 같습니다.");
+    return;
+  }
+
+  const ok = window.confirm(
+    `신품번을 ${editingCode.value} 에서 ${nextCode}(으)로 변경할까요?\n관련 주문, BOM, 거래 이력 코드도 함께 변경됩니다.`
+  );
+  if (!ok) return;
+
+  try {
+    await api.put(`/products/${editingCode.value}/change-code`, {
+      new_code: nextCode
+    });
+  } catch (err) {
+    const message =
+      err?.response?.data?.detail || "신품번 변경 중 오류가 발생했습니다.";
+    alert(message);
+    return;
+  }
+
+  if (selectedProduct.value === editingCode.value) {
+    selectedProduct.value = nextCode;
+  }
+  editingCode.value = nextCode;
+  editNewCode.value = nextCode;
+  await loadInventory();
+  await loadProducts();
+  if (selectedProduct.value === nextCode) {
+    await loadProductLogs(nextCode);
+  }
+  alert("신품번 변경 완료");
 };
 
 const deleteInventoryItem = async (productCode) => {
@@ -1141,6 +1185,19 @@ const refreshUpload = async () => {
     <!-- 수정 -->
     <div v-if="editingCode" class="panel p-3 mb-6">
       <div class="font-semibold mb-2">재고 정보 수정: {{ editingCode }}</div>
+      <div class="mb-3 flex flex-wrap gap-3 items-end rounded-xl bg-slate-50 p-3">
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>현재 신품번</span>
+          <input :value="editingCode" class="input w-40 bg-slate-100" readonly />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>새 신품번</span>
+          <input v-model="editNewCode" class="input w-40" />
+        </label>
+        <button @click="changeProductCode" class="btn btn-info">
+          신품번 변경
+        </button>
+      </div>
       <div class="flex flex-wrap gap-3 items-end">
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>구품번</span>

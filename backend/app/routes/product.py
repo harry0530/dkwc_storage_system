@@ -426,3 +426,67 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
 
     db.commit()
     return product
+
+
+@router.put("/{product_code}/change-code")
+def change_product_code(product_code: str, data: dict, db: Session = Depends(get_db)):
+    old_code = (product_code or "").strip()
+    new_code = (data.get("new_code") or "").strip()
+
+    if not old_code:
+        raise HTTPException(status_code=400, detail="기존 신품번이 필요합니다")
+    if not new_code:
+        raise HTTPException(status_code=400, detail="새 신품번을 입력하세요")
+    if old_code == new_code:
+        raise HTTPException(status_code=400, detail="같은 신품번으로는 변경할 수 없습니다")
+
+    product = db.query(models.Product).filter(
+        models.Product.new_code == old_code
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="제품 없음")
+
+    duplicate = db.query(models.Product).filter(
+        models.Product.new_code == new_code
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="이미 존재하는 신품번입니다")
+
+    # Product references
+    product.new_code = new_code
+
+    # BOM references
+    db.query(models.BOM).filter(
+        models.BOM.parent_code == old_code
+    ).update({models.BOM.parent_code: new_code}, synchronize_session=False)
+    db.query(models.BOM).filter(
+        models.BOM.child_code == old_code
+    ).update({models.BOM.child_code: new_code}, synchronize_session=False)
+
+    # Order / purchase references
+    db.query(models.Order).filter(
+        models.Order.product_code == old_code
+    ).update({models.Order.product_code: new_code}, synchronize_session=False)
+    db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.product_code == old_code
+    ).update({models.PurchaseOrder.product_code: new_code}, synchronize_session=False)
+
+    # Transaction history references
+    db.query(models.Transaction).filter(
+        models.Transaction.product_code == old_code
+    ).update({models.Transaction.product_code: new_code}, synchronize_session=False)
+
+    # Optional alias references when that model exists in this deployment
+    alias_model = getattr(models, "ProductAlias", None)
+    if alias_model is not None:
+        db.query(alias_model).filter(
+            alias_model.product_code == old_code
+        ).update({alias_model.product_code: new_code}, synchronize_session=False)
+
+    db.commit()
+
+    return {
+        "message": "신품번 변경 완료",
+        "old_code": old_code,
+        "new_code": new_code,
+    }
