@@ -1025,7 +1025,7 @@ const refreshUpload = async () => {
 
       <div class="relative w-48" @click.stop>
         <input v-model="searchCode"
-          placeholder="구/신품번 검색"
+          placeholder="구/신품번/도번 검색"
           class="input w-full" />
         <div
           v-if="filteredSearchCodeSuggestions.length"
@@ -1037,7 +1037,7 @@ const refreshUpload = async () => {
             @click="selectSearchCodeSuggestion(item.new_code || item.code)"
             class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
           >
-            {{ item.new_code || item.code }} / {{ item.old_code || "-" }} ({{ item.name }})
+            {{ item.new_code || item.code }} / {{ item.old_code || "-" }} / {{ item.drawing_number || "-" }} ({{ item.name }})
           </div>
         </div>
       </div>
