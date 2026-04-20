@@ -386,9 +386,15 @@ const filteredInventory = computed(() => {
       .toString()
       .toLowerCase();
     const oldValue = (item.old_code || "").toString().toLowerCase();
+    const drawingValue = (item.drawing_number || "").toString().toLowerCase();
     const nameValue = (item.name || "").toString().toLowerCase();
     return (
-      (keyword && (codeValue.includes(keyword) || oldValue.includes(keyword))) ||
+      (keyword &&
+        (
+          codeValue.includes(keyword) ||
+          oldValue.includes(keyword) ||
+          drawingValue.includes(keyword)
+        )) ||
       (nameKeyword && nameValue.includes(nameKeyword))
     );
   });
@@ -685,7 +691,8 @@ const filteredSearchCodeSuggestions = computed(() => {
         .toString()
         .toLowerCase()
         .includes(keyword) ||
-      (item.old_code || "").toString().toLowerCase().includes(keyword)
+      (item.old_code || "").toString().toLowerCase().includes(keyword) ||
+      (item.drawing_number || "").toString().toLowerCase().includes(keyword)
     )
     .slice(0, 10);
 });
@@ -1134,39 +1141,62 @@ const refreshUpload = async () => {
     <!-- 수정 -->
     <div v-if="editingCode" class="panel p-3 mb-6">
       <div class="font-semibold mb-2">재고 정보 수정: {{ editingCode }}</div>
-      <div class="flex flex-wrap gap-2 items-center">
-        <input v-model="editOldCode" placeholder="구품번"
-          class="input w-32" />
-        <input v-model="editDrawingNumber" placeholder="도번"
-          class="input w-32" />
-        <input v-model="editName" placeholder="제품명"
-          class="input w-40" />
-        <input v-model="editMaterial" placeholder="재질"
-          class="input w-28" />
-        <input v-model="editSpec" placeholder="규격"
-          class="input w-28" />
-        <input v-model="editLocation" placeholder="위치"
-          class="input w-32" />
-        <select v-model="editSupplierCompanyId" class="input w-40">
-          <option value="">납품처 선택</option>
-          <option v-for="c in companies" :key="c.id" :value="String(c.id)">
-            {{ c.name }}
-          </option>
-        </select>
-        <input v-model="editMinStock" type="number" placeholder="최소재고"
-          class="input w-24" />
-        <input v-model="editQuantity" type="number" placeholder="재고"
-          class="input w-24" />
-
-        <select v-model="editReasonPreset" class="input w-28">
-          <option value="">사유 선택</option>
-          <option value="결손">결손</option>
-          <option value="불량">불량</option>
-          <option value="재고 정리">재고 정리</option>
-        </select>
-
-        <input v-model="editReason" placeholder="수량 변경 사유(직접 입력)"
-          class="input w-48" />
+      <div class="flex flex-wrap gap-3 items-end">
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>구품번</span>
+          <input v-model="editOldCode" class="input w-32" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>도번</span>
+          <input v-model="editDrawingNumber" class="input w-32" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>제품명</span>
+          <input v-model="editName" class="input w-40" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>재질</span>
+          <input v-model="editMaterial" class="input w-28" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>규격</span>
+          <input v-model="editSpec" class="input w-28" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>보관위치</span>
+          <input v-model="editLocation" class="input w-32" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>납품처</span>
+          <select v-model="editSupplierCompanyId" class="input w-40">
+            <option value="">납품처 선택</option>
+            <option v-for="c in companies" :key="c.id" :value="String(c.id)">
+              {{ c.name }}
+            </option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>최소재고</span>
+          <input v-model="editMinStock" type="number" class="input w-24" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>현재재고</span>
+          <input v-model="editQuantity" type="number" class="input w-24" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>사유 선택</span>
+          <select v-model="editReasonPreset" class="input w-28">
+            <option value="">사유 선택</option>
+            <option value="결손">결손</option>
+            <option value="불량">불량</option>
+            <option value="재고 정리">재고 정리</option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>수량 변경 사유</span>
+          <input v-model="editReason" placeholder="직접 입력"
+            class="input w-48" />
+        </label>
 
         <button @click="saveEdit" class="btn btn-primary">
           저장
