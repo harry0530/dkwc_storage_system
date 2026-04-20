@@ -29,6 +29,7 @@ class Product(Base):
     id = Column(Integer, primary_key=True)
     old_code = Column(String)
     new_code = Column(String, unique=True)
+    drawing_number = Column(String)
     name = Column(String)
     type = Column(String)
     material = Column(String)
