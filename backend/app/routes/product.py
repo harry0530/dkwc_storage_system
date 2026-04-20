@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from io import BytesIO
@@ -9,7 +9,76 @@ from app import models, schemas
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
-# ?뵦 ?듭떖 ?섏젙 遺遺?@router.post("/")
+PART_IMPORT_ALIASES = {
+    "old_code": ["기존품번", "구품번"],
+    "new_code": ["신품번"],
+    "drawing_number": ["도번", "drawing_number"],
+    "name": ["품명"],
+    "material": ["재질"],
+    "spec": ["규격"],
+    "quantity": ["현재재고", "재고수량", "재고"],
+    "min_stock": ["최소재고"],
+    "location": ["보관위치"],
+    "supplier_name": ["납품처", "발주처"],
+}
+
+
+def _normalize_excel_value(value):
+    return str(value or "").strip()
+
+
+def _normalize_excel_code(value):
+    raw = _normalize_excel_value(value)
+    if raw.endswith(".0"):
+        trimmed = raw[:-2]
+        if trimmed.isdigit():
+            return trimmed
+    return raw
+
+
+def _to_int(value):
+    text = _normalize_excel_value(value)
+    if not text:
+        return 0
+    try:
+        return int(float(text.replace(",", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"숫자 형식 오류: {text}") from exc
+
+
+def _build_part_header_map(values):
+    header_values = [_normalize_excel_value(v) for v in values]
+    raw_mapping = {name: idx for idx, name in enumerate(header_values) if name}
+    canonical_mapping = {}
+    for canonical_name, aliases in PART_IMPORT_ALIASES.items():
+        for alias in aliases:
+            if alias in raw_mapping:
+                canonical_mapping[canonical_name] = raw_mapping[alias]
+                break
+    return header_values, canonical_mapping
+
+
+def _find_parts_sheet(workbook):
+    selected_ws = workbook.active
+    selected_header = []
+    selected_col = {}
+    header_row = 1
+
+    for sheet_name in workbook.sheetnames:
+        candidate = workbook[sheet_name]
+        max_rows = min(candidate.max_row, 10)
+        for row_idx in range(1, max_rows + 1):
+            header, col = _build_part_header_map(
+                [cell.value for cell in candidate[row_idx]]
+            )
+            if "new_code" in col:
+                return candidate, header, col, row_idx
+
+    return selected_ws, selected_header, selected_col, header_row
+
+
+# 🔥 핵심 수정 부분
+@router.post("/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
     code = product.code.strip()
     name = product.name.strip() if product.name else ""
@@ -18,7 +87,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         models.Product.new_code == code
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="?대? 議댁옱?섎뒗 ?덈쾲")
+        raise HTTPException(status_code=400, detail="이미 존재하는 품번")
 
     db_product = models.Product(
         old_code=(product.old_code or "").strip(),
@@ -42,149 +111,141 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
 
 
 @router.post("/import-parts")
-def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
+def import_parts(
+    file: UploadFile = File(...),
+    duplicate_action: str = Form("prompt"),
+    db: Session = Depends(get_db)
+):
     if not file.filename:
-        raise HTTPException(status_code=400, detail="?뚯씪???놁뒿?덈떎")
+        raise HTTPException(status_code=400, detail="파일이 없습니다")
+
+    duplicate_action = (duplicate_action or "prompt").strip().lower()
+    if duplicate_action not in {"prompt", "overwrite", "skip"}:
+        raise HTTPException(status_code=400, detail="중복 처리 방식이 올바르지 않습니다")
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
+    ws, header, col, header_row = _find_parts_sheet(wb)
 
-    def normalize(value):
-        return str(value or "").strip()
+    required = [
+        "old_code",
+        "new_code",
+        "name",
+        "spec",
+        "material",
+        "quantity",
+        "min_stock",
+        "location",
+        "supplier_name",
+    ]
+    missing = [field for field in required if field not in col]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"엑셀 형식 오류: 필요한 컬럼이 없습니다 ({', '.join(missing)})"
+        )
 
-    def normalize_code(value):
-        raw = normalize(value)
-        if raw.endswith(".0"):
-            trimmed = raw[:-2]
-            if trimmed.isdigit():
-                return trimmed
-        return raw
+    parsed_rows = []
+    duplicate_codes = []
+    rows_total = 0
 
-    def build_header_map(values):
-        header_values = [normalize(v) for v in values]
-        mapping = {name: idx for idx, name in enumerate(header_values) if name}
-        if "援ы뭹踰? in mapping and "湲곗〈?덈쾲" not in mapping:
-            mapping["湲곗〈?덈쾲"] = mapping["援ы뭹踰?"]
-        if "도번" in mapping and "drawing_number" not in mapping:
-            mapping["drawing_number"] = mapping["도번"]
-        return header_values, mapping
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        if not row or not any(value not in (None, "") for value in row):
+            continue
 
-    ws = wb.active
-    header_row = 1
-    header, col = build_header_map([cell.value for cell in ws[1]])
+        rows_total += 1
+        new_code = _normalize_excel_code(row[col["new_code"]])
+        if not new_code:
+            parsed_rows.append({"is_blank": True})
+            continue
 
-    if not col:
-        for name in wb.sheetnames:
-            candidate = wb[name]
-            if candidate.max_row < 2:
-                continue
-            candidate_header, candidate_col = build_header_map(
-                [cell.value for cell in candidate[1]]
-            )
-            if candidate_col:
-                ws = candidate
-                header = candidate_header
-                col = candidate_col
-                header_row = 1
-                break
+        parsed = {
+            "old_code": _normalize_excel_code(row[col["old_code"]]),
+            "new_code": new_code,
+            "drawing_number": _normalize_excel_value(row[col["drawing_number"]]) if "drawing_number" in col else "",
+            "name": _normalize_excel_value(row[col["name"]]),
+            "spec": _normalize_excel_value(row[col["spec"]]),
+            "material": _normalize_excel_value(row[col["material"]]),
+            "quantity": _to_int(row[col["quantity"]]),
+            "min_stock": _to_int(row[col["min_stock"]]),
+            "location": _normalize_excel_value(row[col["location"]]),
+            "supplier_name": _normalize_excel_value(row[col["supplier_name"]]),
+        }
+        parsed_rows.append(parsed)
 
-    if "?좏뭹踰? not in col:
-        for row_idx in range(1, min(ws.max_row, 10) + 1):
-            candidate_header, candidate_col = build_header_map(
-                [cell.value for cell in ws[row_idx]]
-            )
-            if "?좏뭹踰? in candidate_col:
-                header = candidate_header
-                col = candidate_col
-                header_row = row_idx
-                break
+        product = db.query(models.Product).filter(
+            models.Product.new_code == parsed["new_code"]
+        ).first()
+        if product:
+            duplicate_codes.append(parsed["new_code"])
 
-    if ws.max_row <= header_row:
-        best = None
-        for name in wb.sheetnames:
-            candidate = wb[name]
-            if candidate.max_row <= 1:
-                continue
-            for row_idx in range(1, min(candidate.max_row, 10) + 1):
-                candidate_header, candidate_col = build_header_map(
-                    [cell.value for cell in candidate[row_idx]]
-                )
-                if "?좏뭹踰? in candidate_col:
-                    score = candidate.max_row
-                    if best is None or score > best[0]:
-                        best = (score, candidate, candidate_header, candidate_col, row_idx)
-                    break
-        if best:
-            _, ws, header, col, header_row = best
-
-    required = ["湲곗〈?덈쾲", "?좏뭹踰?", "?덈챸", "洹쒓꺽", "?ъ쭏", "?ш퀬?섎웾", "理쒖냼?ш퀬", "蹂닿??꾩튂", "諛쒖＜泥?"]
-    for r in required:
-        if r not in col:
-            raise HTTPException(status_code=400, detail=f"?묒? ?뺤떇 ?ㅻ쪟: {r} 而щ읆 ?놁쓬")
+    if duplicate_codes and duplicate_action == "prompt":
+        unique_duplicates = list(dict.fromkeys(duplicate_codes))
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "이미 등록된 단품이 있습니다.",
+                "duplicate_count": len(unique_duplicates),
+                "duplicate_codes": unique_duplicates[:20],
+                "rows_total": rows_total,
+            },
+        )
 
     created = 0
     updated = 0
     skipped = 0
-    rows_total = 0
 
-    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
-        if row and any(value not in (None, "") for value in row):
-            rows_total += 1
-        old_code = normalize_code(row[col["湲곗〈?덈쾲"]])
-        new_code = normalize_code(row[col["?좏뭹踰?"]])
-        drawing_number = normalize(row[col["drawing_number"]]) if "drawing_number" in col else ""
-        name = normalize(row[col["?덈챸"]])
-        spec = normalize(row[col["洹쒓꺽"]])
-        material = normalize(row[col["?ъ쭏"]])
-        quantity = int(row[col["?ш퀬?섎웾"]] or 0)
-        min_stock = int(row[col["理쒖냼?ш퀬"]] or 0)
-        location = normalize(row[col["蹂닿??꾩튂"]])
-        supplier_name = normalize(row[col["諛쒖＜泥?"]])
-
-        if not new_code:
+    for parsed in parsed_rows:
+        if parsed.get("is_blank"):
             skipped += 1
             continue
 
         supplier_id = None
-        if supplier_name:
+        if parsed["supplier_name"]:
             company = db.query(models.Company).filter(
-                models.Company.name == supplier_name
+                models.Company.name == parsed["supplier_name"]
             ).first()
             if not company:
-                company = models.Company(name=supplier_name, phone="", fax="", address="")
+                company = models.Company(
+                    name=parsed["supplier_name"], phone="", fax="", address=""
+                )
                 db.add(company)
                 db.commit()
                 db.refresh(company)
             supplier_id = company.id
 
         product = db.query(models.Product).filter(
-            models.Product.new_code == new_code
+            models.Product.new_code == parsed["new_code"]
         ).first()
 
         if product:
-            product.old_code = old_code
-            product.drawing_number = drawing_number
-            product.name = name
+            if duplicate_action == "skip":
+                skipped += 1
+                continue
+
+            product.old_code = parsed["old_code"]
+            product.drawing_number = parsed["drawing_number"]
+            product.name = parsed["name"]
             product.type = "PART"
-            product.material = material
-            product.spec = spec
-            product.quantity = quantity
-            product.min_stock = min_stock
-            product.location = location
+            product.material = parsed["material"]
+            product.spec = parsed["spec"]
+            product.quantity = parsed["quantity"]
+            product.min_stock = parsed["min_stock"]
+            product.location = parsed["location"]
             product.supplier_company_id = supplier_id
             updated += 1
         else:
             db.add(models.Product(
-                old_code=old_code,
-                new_code=new_code,
-                drawing_number=drawing_number,
-                name=name,
+                old_code=parsed["old_code"],
+                new_code=parsed["new_code"],
+                drawing_number=parsed["drawing_number"],
+                name=parsed["name"],
                 type="PART",
-                material=material,
-                spec=spec,
-                quantity=quantity,
-                min_stock=min_stock,
-                location=location,
+                material=parsed["material"],
+                spec=parsed["spec"],
+                quantity=parsed["quantity"],
+                min_stock=parsed["min_stock"],
+                location=parsed["location"],
                 supplier_company_id=supplier_id
             ))
             created += 1
@@ -193,13 +254,14 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
     sample_rows = []
     for row in ws.iter_rows(min_row=1, max_row=min(3, ws.max_row), values_only=True):
-        sample_rows.append([normalize(value) for value in row])
+        sample_rows.append([_normalize_excel_value(value) for value in row])
 
     return {
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "rows_total": rows_total,
+        "duplicate_action": duplicate_action,
         "sheet": ws.title,
         "header": header,
         "max_row": ws.max_row,
@@ -212,7 +274,7 @@ def import_parts(file: UploadFile = File(...), db: Session = Depends(get_db)):
 @router.post("/import-finished")
 def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename:
-        raise HTTPException(status_code=400, detail="?뚯씪???놁뒿?덈떎")
+        raise HTTPException(status_code=400, detail="파일이 없습니다")
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
@@ -221,23 +283,23 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
     header = [cell.value for cell in ws[1]]
     col = {name: idx for idx, name in enumerate(header)}
 
-    required = ["湲곗〈?덈쾲", "?좏뭹踰?", "?덈챸", "洹쒓꺽", "?ъ쭏", "BOM", "諛쒖＜泥?"]
+    required = ["기존품번", "신품번", "품명", "규격", "재질", "BOM", "발주처"]
     for r in required:
         if r not in col:
-            raise HTTPException(status_code=400, detail=f"?묒? ?뺤떇 ?ㅻ쪟: {r} 而щ읆 ?놁쓬")
+            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
 
     created = 0
     updated = 0
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = str(row[col["湲곗〈?덈쾲"]] or "").strip()
-        new_code = str(row[col["?좏뭹踰?"]] or "").strip()
+        old_code = str(row[col["기존품번"]] or "").strip()
+        new_code = str(row[col["신품번"]] or "").strip()
         drawing_number = str(row[col["도번"]] or "").strip() if "도번" in col else ""
-        name = str(row[col["?덈챸"]] or "").strip()
-        spec = str(row[col["洹쒓꺽"]] or "").strip()
-        material = str(row[col["?ъ쭏"]] or "").strip()
+        name = str(row[col["품명"]] or "").strip()
+        spec = str(row[col["규격"]] or "").strip()
+        material = str(row[col["재질"]] or "").strip()
         bom_text = (row[col["BOM"]] or "").strip()
-        supplier_name = str(row[col["諛쒖＜泥?"]] or "").strip()
+        supplier_name = str(row[col["발주처"]] or "").strip()
 
         if not new_code:
             continue
@@ -323,9 +385,9 @@ def delete_product(product_code: str, db: Session = Depends(get_db)):
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="?쒗뭹 ?놁쓬")
+        raise HTTPException(status_code=404, detail="제품 없음")
 
-    # ?쒗뭹 ??젣 ??李몄“?섎뒗 湲곕낯 ?곗씠???뺣━
+    # 제품 삭제 시 참조되는 기본 데이터 정리
     db.query(models.BOM).filter(
         or_(
             models.BOM.parent_code == product_code,
@@ -336,10 +398,10 @@ def delete_product(product_code: str, db: Session = Depends(get_db)):
     db.delete(product)
     db.commit()
 
-    return {"message": "??젣 ?꾨즺"}
+    return {"message": "삭제 완료"}
 
 
-# 狩??쒗뭹 ?섏젙
+# ⭐ 제품 수정
 @router.put("/{product_code}")
 def update_product(product_code: str, data: dict, db: Session = Depends(get_db)):
     product = db.query(models.Product).filter(
@@ -347,7 +409,7 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="?쒗뭹 ?놁쓬")
+        raise HTTPException(status_code=404, detail="제품 없음")
 
     product.old_code = data.get("old_code", product.old_code)
     product.drawing_number = data.get("drawing_number", product.drawing_number)

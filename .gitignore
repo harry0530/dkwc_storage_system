@@ -4,4 +4,9 @@ frontend/.env
 node_modules/
 frontend/node_modules/
 backend/.venv/
+backend/.venv-win/
+backend/install.log
+__pycache__/
+*.py[cod]
+.vscode/
 dist/

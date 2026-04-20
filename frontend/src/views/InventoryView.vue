@@ -700,11 +700,39 @@ const onFileChange = (e) => {
 
 const uploadPartsExcel = async () => {
   if (!uploadFile.value) return;
-  const form = new FormData();
-  form.append("file", uploadFile.value);
-  const res = await api.post("/products/import-parts", form, {
-    headers: { "Content-Type": "multipart/form-data" }
-  });
+
+  const buildUploadForm = (duplicateAction) => {
+    const form = new FormData();
+    form.append("file", uploadFile.value);
+    form.append("duplicate_action", duplicateAction);
+    return form;
+  };
+
+  let res;
+  try {
+    res = await api.post("/products/import-parts", buildUploadForm("prompt"), {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+  } catch (err) {
+    const detail = err?.response?.data?.detail;
+    if (err?.response?.status === 409 && detail?.duplicate_count) {
+      const previewCodes = Array.isArray(detail.duplicate_codes) && detail.duplicate_codes.length
+        ? `\n중복 품번 예시: ${detail.duplicate_codes.join(", ")}`
+        : "";
+      const overwrite = window.confirm(
+        `이미 등록된 단품 ${detail.duplicate_count}건이 있습니다.${previewCodes}\n\n확인: 기존 단품 덮어쓰기\n취소: 중복 단품 스킵`
+      );
+      const duplicateAction = overwrite ? "overwrite" : "skip";
+      res = await api.post("/products/import-parts", buildUploadForm(duplicateAction), {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+    } else {
+      const message = detail?.message || detail || "엑셀 업로드 중 오류가 발생했습니다.";
+      alert(message);
+      return;
+    }
+  }
+
   uploadFile.value = null;
   if (uploadInputRef.value) {
     uploadInputRef.value.value = "";
