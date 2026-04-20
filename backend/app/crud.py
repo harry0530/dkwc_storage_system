@@ -2,7 +2,7 @@ from app import models
 
 
 # =====================
-# ?쒗뭹
+# 제품
 # =====================
 def create_product(db, product):
     data = product.dict()
@@ -53,16 +53,16 @@ def delete_bom(db, bom_id):
     bom = db.query(models.BOM).filter(models.BOM.id == bom_id).first()
 
     if not bom:
-        raise Exception("?놁쓬")
+        raise Exception("없음")
 
     db.delete(bom)
     db.commit()
 
-    return {"message": "??젣 ?꾨즺"}
+    return {"message": "삭제 완료"}
 
 
 # =====================
-# ?ш퀬
+# 재고
 # =====================
 def create_inventory(db, inv):
     existing = db.query(models.Product).filter(
@@ -70,17 +70,17 @@ def create_inventory(db, inv):
     ).first()
 
     if not existing:
-        # old_code濡쒕룄 ?뺤씤
+        # old_code로도 확인
         existing = db.query(models.Product).filter(
             models.Product.old_code == inv.product_code
         ).first()
 
     if not existing:
-        raise Exception("議댁옱?섏? ?딅뒗 ?덈쾲")
+        raise Exception("존재하지 않는 품번")
 
     existing.quantity += inv.quantity
 
-    # 狩??낃퀬 濡쒓렇
+    # ⭐ 입고 로그
     db.add(models.Transaction(
         product_code=existing.new_code,
         quantity=inv.quantity,
@@ -96,30 +96,32 @@ def get_inventory(db):
 
 
 # =====================
-# 二쇰Ц (?뵦 ?듭떖 ?섏젙??
+# 주문 (🔥 핵심 수정됨)
 # =====================
 def create_order(db, order):
 
     input_code = order.product_code.strip()
 
-    # 1截뤴깵 alias ???곕━ 肄붾뱶 蹂??    alias = db.query(models.ProductAlias).filter(
+    # 1️⃣ alias → 우리 코드 변환
+    alias = db.query(models.ProductAlias).filter(
         models.ProductAlias.alias_code == input_code
     ).first()
 
     if alias:
         real_code = alias.product_code
     else:
-        # 2截뤴깵 ?곕━ 肄붾뱶?몄? ?뺤씤
+        # 2️⃣ 우리 코드인지 확인
         product = db.query(models.Product).filter(
             models.Product.code == input_code
         ).first()
 
         if not product:
-            raise Exception("議댁옱?섏? ?딅뒗 ?덈쾲")
+            raise Exception("존재하지 않는 품번")
 
         real_code = input_code
 
-    # 狩???긽 ?곕━ 肄붾뱶濡????    db_order = models.Order(
+    # ⭐ 항상 우리 코드로 저장
+    db_order = models.Order(
         product_code=real_code,
         quantity=order.quantity,
         company=order.company
@@ -136,15 +138,15 @@ def get_orders(db):
 
 
 # =====================
-# ?앹궛
+# 생산
 # =====================
 def run_production(db, order_id):
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
     if order.status == "DONE":
-        raise Exception("?대? ?꾨즺")
+        raise Exception("이미 완료")
 
-    # 狩??뱀떆 紐곕씪??怨듬갚 ?쒓굅
+    # ⭐ 혹시 몰라서 공백 제거
     order.product_code = order.product_code.strip()
 
     boms = db.query(models.BOM).filter(
@@ -152,9 +154,9 @@ def run_production(db, order_id):
     ).all()
 
     if not boms:
-        raise Exception("BOM ?놁쓬")
+        raise Exception("BOM 없음")
 
-    # 1截뤴깵 ?ш퀬 泥댄겕
+    # 1️⃣ 재고 체크
     for bom in boms:
         inv = db.query(models.Inventory).filter(
             models.Inventory.product_code == bom.child_code
@@ -163,9 +165,9 @@ def run_production(db, order_id):
         required = bom.quantity * order.quantity
 
         if not inv or inv.quantity < required:
-            raise Exception(f"{bom.child_code} ?ш퀬 遺議?)
+            raise Exception(f"{bom.child_code} 재고 부족")
 
-    # 2截뤴깵 遺??李④컧 (OUT)
+    # 2️⃣ 부품 차감 (OUT)
     for bom in boms:
         inv = db.query(models.Inventory).filter(
             models.Inventory.product_code == bom.child_code
@@ -181,7 +183,7 @@ def run_production(db, order_id):
             reason="PRODUCTION"
         ))
 
-    # 3截뤴깵 ?꾩젣??利앷? (IN)
+    # 3️⃣ 완제품 증가 (IN)
     finished_inv = db.query(models.Inventory).filter(
         models.Inventory.product_code == order.product_code
     ).first()
@@ -202,13 +204,14 @@ def run_production(db, order_id):
         reason="PRODUCTION"
     ))
 
-    # 4截뤴깵 ?곹깭 蹂寃?    order.status = "DONE"
+    # 4️⃣ 상태 변경
+    order.status = "DONE"
 
     db.commit()
 
 
 # =====================
-# 濡쒓렇
+# 로그
 # =====================
 def get_transactions(db):
     return db.query(models.Transaction).all()
