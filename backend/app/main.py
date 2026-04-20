@@ -58,7 +58,8 @@ def ensure_purchase_order_columns():
                 text("CREATE TABLE IF NOT EXISTS purchase_order_receipts (id SERIAL PRIMARY KEY, purchase_order_id INTEGER, quantity INTEGER, created_at TIMESTAMP DEFAULT NOW())")
             )
     else:
-        # SQLite ?깆? ?ㅽ궎留??ъ깮????諛섏쁺??        pass
+        # SQLite 등은 스키마 재생성 시 반영됨
+        pass
 
 
 def ensure_product_drawing_number_column():
