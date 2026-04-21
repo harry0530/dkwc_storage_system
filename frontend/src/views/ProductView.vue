@@ -374,12 +374,13 @@ const toggleBOM = (code) => {
   };
 };
 
+const getProductByCode = (productCode) => {
+  return products.value.find((p) => (p.code || "") === (productCode || "")) || null;
+};
+
 const filteredProducts = computed(() => {
   const keyword = (productSearch.value || "").trim().toLowerCase();
-  const base =
-    listMode.value === "ALL"
-      ? products.value
-      : products.value.filter((p) => p.type === "FINISHED");
+  const base = products.value.filter((p) => p.type === "FINISHED");
   const sorted = [...base].sort((a, b) =>
     (a.code || "").localeCompare(b.code || "")
   );
@@ -658,17 +659,42 @@ const deferHide = (fn) => {
                     </button>
                   </div>
                   <div class="p-3">
-                    <div
-                      v-for="b in getBOM(p.code)"
-                      :key="b.id"
-                      class="flex items-center gap-2 text-sm mb-1"
-                    >
-                      {{ b.child_code }} x {{ b.quantity }}
-
-                      <button @click="deleteBOM(b.id)"
-                        class="btn btn-danger h-7 px-2 text-xs">
-                        삭제
-                      </button>
+                    <div v-if="getBOM(p.code).length" class="overflow-x-auto">
+                      <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-100 text-slate-600">
+                          <tr>
+                            <th class="p-2">구품번</th>
+                            <th class="p-2">신품번</th>
+                            <th class="p-2">품명</th>
+                            <th class="p-2">재질</th>
+                            <th class="p-2">규격</th>
+                            <th class="p-2">현재 재고</th>
+                            <th class="p-2">소요량</th>
+                            <th class="p-2">관리</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr
+                            v-for="b in getBOM(p.code)"
+                            :key="b.id"
+                            class="border-t"
+                          >
+                            <td class="p-2">{{ getProductByCode(b.child_code)?.old_code || "-" }}</td>
+                            <td class="p-2">{{ b.child_code }}</td>
+                            <td class="p-2">{{ getProductByCode(b.child_code)?.name || "-" }}</td>
+                            <td class="p-2">{{ getProductByCode(b.child_code)?.material || "-" }}</td>
+                            <td class="p-2">{{ getProductByCode(b.child_code)?.spec || "-" }}</td>
+                            <td class="p-2">{{ getProductByCode(b.child_code)?.quantity ?? 0 }}</td>
+                            <td class="p-2">{{ b.quantity }}</td>
+                            <td class="p-2">
+                              <button @click="deleteBOM(b.id)"
+                                class="btn btn-danger h-7 px-2 text-xs">
+                                삭제
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
 
                     <div class="flex gap-1 mt-2">
