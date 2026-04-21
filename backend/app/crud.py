@@ -1,6 +1,36 @@
 from app import models
 
 
+def update_bom(db, bom_id, data):
+    bom = db.query(models.BOM).filter(models.BOM.id == bom_id).first()
+
+    if not bom:
+        raise Exception("없음")
+
+    child_code = (data.child_code or "").strip()
+    if not child_code:
+        raise Exception("부품 품번이 필요합니다")
+
+    quantity = int(data.quantity or 0)
+    if quantity <= 0:
+        raise Exception("수량은 1 이상이어야 합니다")
+
+    duplicate = db.query(models.BOM).filter(
+        models.BOM.parent_code == bom.parent_code,
+        models.BOM.child_code == child_code,
+        models.BOM.id != bom_id
+    ).first()
+    if duplicate:
+        raise Exception("이미 같은 BOM 항목이 있습니다")
+
+    bom.child_code = child_code
+    bom.quantity = quantity
+    db.commit()
+    db.refresh(bom)
+
+    return bom
+
+
 # =====================
 # 제품
 # =====================

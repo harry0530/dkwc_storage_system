@@ -21,6 +21,11 @@ class BOMCreate(BaseModel):
     quantity: int
 
 
+class BOMUpdate(BaseModel):
+    child_code: str
+    quantity: int
+
+
 class InventoryCreate(BaseModel):
     product_code: str
     quantity: int

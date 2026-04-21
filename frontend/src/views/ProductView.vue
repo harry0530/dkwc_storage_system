@@ -40,6 +40,7 @@ const bomRows = ref([]);
 const bomQuickSearch = ref("");
 const showBomParentDropdown = ref(false);
 const showBomPartDropdown = ref({});
+const bomEditState = ref({});
 
 // =====================
 // 데이터 로드
@@ -171,6 +172,68 @@ const addBOM = async (parent_code) => {
 const deleteBOM = async (id) => {
   await api.delete(`/bom/${id}`);
   loadData();
+};
+
+const startBomEdit = (bom) => {
+  const part = getProductByCode(bom.child_code);
+  bomEditState.value[bom.id] = {
+    partCode: bom.child_code,
+    partInput: part
+      ? `${part.name} (${part.code}${part.old_code ? ` / ${part.old_code}` : ""})`
+      : bom.child_code,
+    qty: String(bom.quantity ?? ""),
+  };
+};
+
+const cancelBomEdit = (bomId) => {
+  delete bomEditState.value[bomId];
+  delete showBomPartDropdown.value[`edit-${bomId}`];
+};
+
+const filteredBomEditParts = (bomId) => {
+  const keyword = (bomEditState.value[bomId]?.partInput || "").trim().toLowerCase();
+  return products.value.filter((p) =>
+    p.type === "PART" &&
+    (
+      !keyword ||
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword) ||
+      (p.name || "").toLowerCase().includes(keyword)
+    )
+  );
+};
+
+const selectBomEditPart = (bomId, p) => {
+  const current = bomEditState.value[bomId];
+  if (!current) return;
+  current.partCode = p.code;
+  current.partInput = `${p.name} (${p.code}${p.old_code ? ` / ${p.old_code}` : ""})`;
+  showBomPartDropdown.value[`edit-${bomId}`] = false;
+};
+
+const saveBomEdit = async (bom) => {
+  const current = bomEditState.value[bom.id];
+  if (!current) return;
+
+  const partCode = current.partCode || resolveBomCode(current.partInput, "PART");
+  const quantity = Number(current.qty || 0);
+  if (!partCode || quantity <= 0) {
+    alert("부품과 수량을 올바르게 입력하세요.");
+    return;
+  }
+
+  try {
+    await api.put(`/bom/${bom.id}`, {
+      child_code: partCode,
+      quantity,
+    });
+  } catch (err) {
+    alert(err?.response?.data?.detail || "BOM 수정 중 오류가 발생했습니다.");
+    return;
+  }
+
+  cancelBomEdit(bom.id);
+  await loadData();
 };
 
 // =====================
@@ -451,8 +514,8 @@ const selectCreateCodeSuggestion = (codeValue) => {
   showCreateCodeDropdown.value = false;
 };
 
-const selectCreateNameSuggestion = (nameValue) => {
-  name.value = nameValue;
+const selectCreateNameSuggestion = (item) => {
+  name.value = item?.name || "";
   showCreateNameDropdown.value = false;
 };
 
@@ -476,14 +539,44 @@ const onFinishedFileChange = (e) => {
 
 const uploadFinishedExcel = async () => {
   if (!finishedUploadFile.value) return;
-  const form = new FormData();
-  form.append("file", finishedUploadFile.value);
-  await api.post("/products/import-finished", form, {
-    headers: { "Content-Type": "multipart/form-data" }
-  });
+  const buildUploadForm = (duplicateAction) => {
+    const form = new FormData();
+    form.append("file", finishedUploadFile.value);
+    form.append("duplicate_action", duplicateAction);
+    return form;
+  };
+
+  let res;
+  try {
+    res = await api.post("/products/import-finished", buildUploadForm("prompt"), {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+  } catch (err) {
+    const detail = err?.response?.data?.detail;
+    if (err?.response?.status === 409 && detail?.duplicate_count) {
+      const previewCodes = Array.isArray(detail.duplicate_codes) && detail.duplicate_codes.length
+        ? `\n중복 품번 예시: ${detail.duplicate_codes.join(", ")}`
+        : "";
+      const overwrite = window.confirm(
+        `이미 등록된 완제품 ${detail.duplicate_count}건이 있습니다.${previewCodes}\n\n확인: 기존 완제품 덮어쓰기\n취소: 중복 완제품 스킵`
+      );
+      const duplicateAction = overwrite ? "overwrite" : "skip";
+      res = await api.post("/products/import-finished", buildUploadForm(duplicateAction), {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+    } else {
+      alert(detail?.message || detail || "완제품 엑셀 업로드 중 오류가 발생했습니다.");
+      return;
+    }
+  }
+
   finishedUploadFile.value = null;
-  loadData();
-  alert("엑셀 업로드 완료");
+  await loadData();
+  const created = Number(res?.data?.created || 0);
+  const updated = Number(res?.data?.updated || 0);
+  const skipped = Number(res?.data?.skipped || 0);
+  const rowsTotal = Number(res?.data?.rows_total || 0);
+  alert(`완제품 엑셀 업로드 완료 (신규 ${created}건, 업데이트 ${updated}건, 스킵 ${skipped}건, 총행 ${rowsTotal}건)`);
 };
 
 const deferHide = (fn) => {
@@ -679,18 +772,76 @@ const deferHide = (fn) => {
                             :key="b.id"
                             class="border-t"
                           >
-                            <td class="p-2">{{ getProductByCode(b.child_code)?.old_code || "-" }}</td>
-                            <td class="p-2">{{ b.child_code }}</td>
-                            <td class="p-2">{{ getProductByCode(b.child_code)?.name || "-" }}</td>
-                            <td class="p-2">{{ getProductByCode(b.child_code)?.material || "-" }}</td>
-                            <td class="p-2">{{ getProductByCode(b.child_code)?.spec || "-" }}</td>
-                            <td class="p-2">{{ getProductByCode(b.child_code)?.quantity ?? 0 }}</td>
-                            <td class="p-2">{{ b.quantity }}</td>
+                            <template v-if="bomEditState[b.id]">
+                              <td class="p-2">{{ getProductByCode(bomEditState[b.id].partCode)?.old_code || "-" }}</td>
+                              <td class="p-2">{{ bomEditState[b.id].partCode || "-" }}</td>
+                              <td class="p-2" colspan="3">
+                                <div class="relative" @click.stop>
+                                  <input
+                                    v-model="bomEditState[b.id].partInput"
+                                    @input="showBomPartDropdown[`edit-${b.id}`] = true"
+                                    @focus="showBomPartDropdown[`edit-${b.id}`] = true"
+                                    @blur="deferHide(() => showBomPartDropdown[`edit-${b.id}`] = false)"
+                                    placeholder="부품 검색 (구/신품번/품명)"
+                                    class="input w-full text-xs"
+                                  />
+                                  <div
+                                    v-if="showBomPartDropdown[`edit-${b.id}`] && filteredBomEditParts(b.id).length"
+                                    class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+                                  >
+                                    <div
+                                      v-for="part in filteredBomEditParts(b.id)"
+                                      :key="`bom-edit-${b.id}-${part.code}`"
+                                      @click="selectBomEditPart(b.id, part)"
+                                      class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                                    >
+                                      {{ part.name }} ({{ part.code }} / {{ part.old_code || "-" }})
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td class="p-2">{{ getProductByCode(bomEditState[b.id].partCode)?.quantity ?? 0 }}</td>
+                              <td class="p-2">
+                                <input
+                                  v-model="bomEditState[b.id].qty"
+                                  type="number"
+                                  min="1"
+                                  class="input w-20 text-xs"
+                                />
+                              </td>
+                            </template>
+                            <template v-else>
+                              <td class="p-2">{{ getProductByCode(b.child_code)?.old_code || "-" }}</td>
+                              <td class="p-2">{{ b.child_code }}</td>
+                              <td class="p-2">{{ getProductByCode(b.child_code)?.name || "-" }}</td>
+                              <td class="p-2">{{ getProductByCode(b.child_code)?.material || "-" }}</td>
+                              <td class="p-2">{{ getProductByCode(b.child_code)?.spec || "-" }}</td>
+                              <td class="p-2">{{ getProductByCode(b.child_code)?.quantity ?? 0 }}</td>
+                              <td class="p-2">{{ b.quantity }}</td>
+                            </template>
                             <td class="p-2">
-                              <button @click="deleteBOM(b.id)"
-                                class="btn btn-danger h-7 px-2 text-xs">
-                                삭제
-                              </button>
+                              <div class="flex gap-1">
+                                <template v-if="bomEditState[b.id]">
+                                  <button @click="saveBomEdit(b)"
+                                    class="btn btn-primary h-7 px-2 text-xs">
+                                    저장
+                                  </button>
+                                  <button @click="cancelBomEdit(b.id)"
+                                    class="btn btn-secondary h-7 px-2 text-xs">
+                                    취소
+                                  </button>
+                                </template>
+                                <template v-else>
+                                  <button @click="startBomEdit(b)"
+                                    class="btn btn-info h-7 px-2 text-xs">
+                                    수정
+                                  </button>
+                                  <button @click="deleteBOM(b.id)"
+                                    class="btn btn-danger h-7 px-2 text-xs">
+                                    삭제
+                                  </button>
+                                </template>
+                              </div>
                             </td>
                           </tr>
                         </tbody>

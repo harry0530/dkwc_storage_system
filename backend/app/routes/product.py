@@ -354,81 +354,125 @@ def import_parts(
 
 
 @router.post("/import-finished")
-def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db)):
+def import_finished(
+    file: UploadFile = File(...),
+    duplicate_action: str = Form("prompt"),
+    db: Session = Depends(get_db)
+):
     if not file.filename:
         raise HTTPException(status_code=400, detail="파일이 없습니다")
+
+    duplicate_action = (duplicate_action or "prompt").strip().lower()
+    if duplicate_action not in {"prompt", "overwrite", "skip"}:
+        raise HTTPException(status_code=400, detail="중복 처리 방식이 올바르지 않습니다")
 
     content = file.file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
     ws = wb.active
 
-    header = [cell.value for cell in ws[1]]
-    col = {name: idx for idx, name in enumerate(header)}
+    header = [_normalize_excel_value(cell.value) for cell in ws[1]]
+    col = {name: idx for idx, name in enumerate(header) if name}
 
-    required = ["기존품번", "신품번", "품명", "규격", "재질", "BOM", "발주처"]
+    required = ["신품번", "구품번", "품명", "규격"]
     for r in required:
         if r not in col:
             raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
 
+    rows_total = 0
     created = 0
     updated = 0
+    skipped = 0
+    duplicate_codes = []
+    parsed_rows = []
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        old_code = str(row[col["기존품번"]] or "").strip()
+        if not row or not any(value not in (None, "") for value in row):
+            continue
+
+        rows_total += 1
+        old_code = str(row[col["구품번"]] or "").strip()
         new_code = str(row[col["신품번"]] or "").strip()
         drawing_number = str(row[col["도번"]] or "").strip() if "도번" in col else ""
         name = str(row[col["품명"]] or "").strip()
         spec = str(row[col["규격"]] or "").strip()
-        material = str(row[col["재질"]] or "").strip()
-        bom_text = (row[col["BOM"]] or "").strip()
-        supplier_name = str(row[col["발주처"]] or "").strip()
+        material = str(row[col["재질"]] or "").strip() if "재질" in col else ""
+        bom_text = str(row[col["BOM"]] or "").strip() if "BOM" in col else ""
 
         if not new_code:
             continue
 
-        supplier_id = None
-        if supplier_name:
-            company = db.query(models.Company).filter(
-                models.Company.name == supplier_name
-            ).first()
-            if not company:
-                company = models.Company(name=supplier_name, phone="", fax="", address="")
-                db.add(company)
-                db.commit()
-                db.refresh(company)
-            supplier_id = company.id
+        parsed_rows.append({
+            "old_code": old_code,
+            "new_code": new_code,
+            "drawing_number": drawing_number,
+            "name": name,
+            "spec": spec,
+            "material": material,
+            "bom_text": bom_text,
+        })
 
         product = db.query(models.Product).filter(
             models.Product.new_code == new_code
         ).first()
+        if product:
+            duplicate_codes.append(new_code)
+
+    if duplicate_codes and duplicate_action == "prompt":
+        unique_duplicates = list(dict.fromkeys(duplicate_codes))
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "이미 등록된 완제품이 있습니다.",
+                "duplicate_count": len(unique_duplicates),
+                "duplicate_codes": unique_duplicates[:20],
+                "rows_total": rows_total,
+            },
+        )
+
+    for parsed in parsed_rows:
+        product = db.query(models.Product).filter(
+            models.Product.new_code == parsed["new_code"]
+        ).first()
 
         if product:
-            product.old_code = old_code
-            product.drawing_number = drawing_number
-            product.name = name
+            if duplicate_action == "skip":
+                skipped += 1
+                continue
+
+            product.old_code = parsed["old_code"]
+            product.drawing_number = parsed["drawing_number"]
+            product.name = parsed["name"]
             product.type = "FINISHED"
-            product.material = material
-            product.spec = spec
-            product.supplier_company_id = supplier_id
+            product.material = ""
+            product.spec = parsed["spec"]
+            product.quantity = 0
+            product.min_stock = 0
+            product.location = ""
+            product.supplier_company_id = None
             updated += 1
         else:
             db.add(models.Product(
-                old_code=old_code,
-                new_code=new_code,
-                drawing_number=drawing_number,
-                name=name,
+                old_code=parsed["old_code"],
+                new_code=parsed["new_code"],
+                drawing_number=parsed["drawing_number"],
+                name=parsed["name"],
                 type="FINISHED",
-                material=material,
-                spec=spec,
+                material="",
+                spec=parsed["spec"],
                 quantity=0,
                 min_stock=0,
                 location="",
-                supplier_company_id=supplier_id
+                supplier_company_id=None
             ))
             created += 1
 
-        if bom_text:
-            for chunk in bom_text.split(","):
+        if duplicate_action == "overwrite":
+            db.query(models.BOM).filter(
+                models.BOM.parent_code == parsed["new_code"]
+            ).delete(synchronize_session=False)
+
+        if parsed["bom_text"]:
+            for chunk in parsed["bom_text"].split(","):
                 part = chunk.strip()
                 if not part or ":" not in part:
                     continue
@@ -440,19 +484,25 @@ def import_finished(file: UploadFile = File(...), db: Session = Depends(get_db))
                     continue
 
                 existing = db.query(models.BOM).filter(
-                    models.BOM.parent_code == new_code,
+                    models.BOM.parent_code == parsed["new_code"],
                     models.BOM.child_code == child_code
                 ).first()
                 if not existing:
                     db.add(models.BOM(
-                        parent_code=new_code,
+                        parent_code=parsed["new_code"],
                         child_code=child_code,
                         quantity=qty
                     ))
 
     db.commit()
 
-    return {"created": created, "updated": updated}
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "rows_total": rows_total,
+        "duplicate_action": duplicate_action,
+    }
 
 
 @router.get("/")

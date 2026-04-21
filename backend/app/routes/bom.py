@@ -28,3 +28,8 @@ def get_all_bom(db: Session = Depends(get_db)):
 @router.delete("/{bom_id}")
 def delete_bom(bom_id: int, db: Session = Depends(get_db)):
     return crud.delete_bom(db, bom_id)
+
+
+@router.put("/{bom_id}")
+def update_bom(bom_id: int, data: schemas.BOMUpdate, db: Session = Depends(get_db)):
+    return crud.update_bom(db, bom_id, data)
