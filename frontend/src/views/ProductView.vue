@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import api from "../api";
 
 const products = ref([]);
@@ -40,12 +40,6 @@ const bomRows = ref([]);
 const bomQuickSearch = ref("");
 const showBomParentDropdown = ref(false);
 const showBomPartDropdown = ref({});
-
-// 완제품 품번 구성 (1 / 01 / M - S)
-const finishedFirst = ref("1");
-const finishedTwo = ref("01");
-const finishedMid = ref("M");
-const finishedLast = ref("S");
 
 // =====================
 // 데이터 로드
@@ -372,8 +366,9 @@ const filteredProducts = computed(() => {
   if (!keyword) return listMode.value === "ALL" ? sorted : [];
   return sorted.filter((p) => {
     const codeMatch = (p.code || "").toLowerCase().includes(keyword);
+    const oldCodeMatch = (p.old_code || "").toLowerCase().includes(keyword);
     const nameMatch = (p.name || "").toLowerCase().includes(keyword);
-    return codeMatch || nameMatch;
+    return codeMatch || oldCodeMatch || nameMatch;
   });
 });
 
@@ -388,15 +383,6 @@ onUnmounted(() => {
   window.removeEventListener("click", handleGlobalClick);
 });
 
-const finishedCode = computed(
-  () => `${finishedFirst.value}${finishedTwo.value}${finishedMid.value}-${finishedLast.value}`
-);
-
-watch([finishedFirst, finishedTwo, finishedMid, finishedLast], () => {
-  productSearchInput.value = finishedCode.value;
-  productSearch.value = finishedCode.value;
-});
-
 const applySearch = () => {
   productSearch.value = productSearchInput.value;
 };
@@ -408,13 +394,18 @@ const filteredNameSuggestions = computed(() => {
     .filter((p) =>
       listMode.value === "ALL" ? true : p.type === "FINISHED"
     )
-    .filter((p) => (p.name || "").toLowerCase().includes(keyword))
+    .filter((p) =>
+      (p.name || "").toLowerCase().includes(keyword) ||
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword)
+    )
     .slice(0, 10);
 });
 
-const selectNameSuggestion = (name) => {
-  productSearchInput.value = name;
-  productSearch.value = name;
+const selectNameSuggestion = (item) => {
+  const searchValue = item.code || item.old_code || item.name || "";
+  productSearchInput.value = searchValue;
+  productSearch.value = searchValue;
   showNameDropdown.value = false;
 };
 
@@ -486,69 +477,64 @@ const deferHide = (fn) => {
 
     <!-- 완제품 등록 -->
     <div class="panel p-3 mb-6">
-      <div class="flex flex-col gap-2">
-        <div class="flex gap-2 items-center flex-wrap">
-          <input v-model="oldCodeInput"
-            placeholder="구품번"
-            class="input w-32" />
+      <div class="flex gap-2 items-center flex-wrap">
+        <input v-model="oldCodeInput"
+          placeholder="구품번"
+          class="input w-32" />
 
-          <div class="relative w-40" @click.stop>
-            <input
-              v-model="code"
-              @focus="showCreateCodeDropdown = true"
-              @blur="deferHide(() => showCreateCodeDropdown = false)"
-              placeholder="신품번"
-              class="input w-full"
-            />
+        <div class="relative w-40" @click.stop>
+          <input
+            v-model="code"
+            @focus="showCreateCodeDropdown = true"
+            @blur="deferHide(() => showCreateCodeDropdown = false)"
+            placeholder="신품번"
+            class="input w-full"
+          />
+          <div
+            v-if="showCreateCodeDropdown && filteredCreateCodeSuggestions.length"
+            class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+          >
             <div
-              v-if="showCreateCodeDropdown && filteredCreateCodeSuggestions.length"
-              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+              v-for="item in filteredCreateCodeSuggestions"
+              :key="`create-code-${item.code}`"
+              @click="selectCreateCodeSuggestion(item.code)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
             >
-              <div
-                v-for="item in filteredCreateCodeSuggestions"
-                :key="`create-code-${item.code}`"
-                @click="selectCreateCodeSuggestion(item.code)"
-                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-              >
-                {{ item.code }} ({{ item.name }})
-              </div>
+              {{ item.code }} ({{ item.name }})
             </div>
           </div>
+        </div>
 
-          <div class="relative w-56" @click.stop>
-            <input
-              v-model="name"
-              @focus="showCreateNameDropdown = true"
-              @blur="deferHide(() => showCreateNameDropdown = false)"
-              placeholder="품명"
-              class="input w-full"
-            />
+        <div class="relative w-56" @click.stop>
+          <input
+            v-model="name"
+            @focus="showCreateNameDropdown = true"
+            @blur="deferHide(() => showCreateNameDropdown = false)"
+            placeholder="품명"
+            class="input w-full"
+          />
+          <div
+            v-if="showCreateNameDropdown && filteredCreateNameSuggestions.length"
+            class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+          >
             <div
-              v-if="showCreateNameDropdown && filteredCreateNameSuggestions.length"
-              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
+              v-for="item in filteredCreateNameSuggestions"
+              :key="`create-name-${item.code}`"
+              @click="selectCreateNameSuggestion(item)"
+              class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
             >
-              <div
-                v-for="item in filteredCreateNameSuggestions"
-                :key="`create-name-${item.code}`"
-                @click="selectCreateNameSuggestion(item.name)"
-                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-              >
-                {{ item.name }} ({{ item.code }})
-              </div>
+              {{ item.name }} ({{ item.code }})
             </div>
           </div>
-
-          <button @click="createProduct" class="btn btn-primary">
-            완제품 등록
-          </button>
         </div>
 
-        <div class="flex gap-2 items-center flex-wrap">
-          <input v-model="specInput"
-            placeholder="규격"
-            class="input w-32" />
+        <input v-model="specInput"
+          placeholder="규격"
+          class="input w-40" />
 
-        </div>
+        <button @click="createProduct" class="btn btn-primary">
+          완제품 등록
+        </button>
       </div>
     </div>
 
@@ -594,38 +580,16 @@ const deferHide = (fn) => {
             <div
               v-for="item in filteredNameSuggestions"
               :key="`name-${item.code}`"
-              @click="selectNameSuggestion(item.name)"
+              @click="selectNameSuggestion(item)"
               class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
             >
-              {{ item.name }} ({{ item.code }})
+              {{ item.name }} ({{ item.code }} / {{ item.old_code || "-" }})
             </div>
           </div>
         </div>
         <button @click="applySearch" class="btn btn-secondary h-9">
           검색
         </button>
-        <div class="flex items-center gap-1">
-          <select v-model="finishedFirst" class="input w-16">
-            <option v-for="n in [1,2,3,4,5]" :key="n" :value="String(n)">
-              {{ n }}
-            </option>
-          </select>
-          <select v-model="finishedTwo" class="input w-20">
-            <option v-for="n in 21" :key="n" :value="String(n).padStart(2, '0')">
-              {{ String(n).padStart(2, '0') }}
-            </option>
-          </select>
-          <select v-model="finishedMid" class="input w-16">
-            <option value="M">M</option>
-            <option value="S">S</option>
-          </select>
-          <select v-model="finishedLast" class="input w-16">
-            <option value="S">S</option>
-            <option value="E">E</option>
-            <option value="T">T</option>
-            <option value="K">K</option>
-          </select>
-        </div>
       </div>
 
       <table class="w-full text-left">
