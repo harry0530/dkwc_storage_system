@@ -177,11 +177,16 @@ const deleteBOM = async (id) => {
 // 자동완성 필터
 // =====================
 const filteredParts = (parent_code) => {
-  const keyword = searchInput.value[parent_code] || "";
+  const keyword = (searchInput.value[parent_code] || "").trim().toLowerCase();
 
   return products.value.filter(p =>
     p.type === "PART" &&
-    (p.code.includes(keyword) || p.name.includes(keyword))
+    (
+      !keyword ||
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword) ||
+      (p.name || "").toLowerCase().includes(keyword)
+    )
   );
 };
 
@@ -198,13 +203,18 @@ const filteredBomParents = computed(() => {
   const keyword = (bomParentInput.value || "").trim().toLowerCase();
   return products.value.filter(p =>
     p.type === "FINISHED" &&
-    (!keyword || (p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+    (
+      !keyword ||
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword) ||
+      (p.name || "").toLowerCase().includes(keyword)
+    )
   );
 });
 
 const selectBomParent = (p) => {
   bomParentCode.value = p.code;
-  bomParentInput.value = `${p.name} (${p.code})`;
+  bomParentInput.value = `${p.name} (${p.code}${p.old_code ? ` / ${p.old_code}` : ""})`;
   showBomParentDropdown.value = false;
 };
 
@@ -229,7 +239,12 @@ const filteredBomParts = (row) => {
   const keyword = (row.partInput || "").trim().toLowerCase();
   return products.value.filter(p =>
     p.type === "PART" &&
-    (!keyword || (p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+    (
+      !keyword ||
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword) ||
+      (p.name || "").toLowerCase().includes(keyword)
+    )
   );
 };
 
@@ -237,7 +252,7 @@ const selectBomPart = (index, p) => {
   const row = bomRows.value[index];
   if (!row) return;
   row.partCode = p.code;
-  row.partInput = `${p.name} (${p.code})`;
+  row.partInput = `${p.name} (${p.code}${p.old_code ? ` / ${p.old_code}` : ""})`;
   showBomPartDropdown.value[index] = false;
 };
 
@@ -246,7 +261,11 @@ const filteredBomQuickParts = computed(() => {
   if (!keyword) return [];
   return products.value.filter(p =>
     p.type === "PART" &&
-    ((p.code || "").toLowerCase().includes(keyword) || (p.name || "").toLowerCase().includes(keyword))
+    (
+      (p.code || "").toLowerCase().includes(keyword) ||
+      (p.old_code || "").toLowerCase().includes(keyword) ||
+      (p.name || "").toLowerCase().includes(keyword)
+    )
   );
 });
 
@@ -263,7 +282,7 @@ const toggleBomQuickPart = (p) => {
 
   const emptyIndex = bomRows.value.findIndex((row) => !row.partCode && !row.partInput && !row.qty);
   const newRow = {
-    partInput: `${p.name} (${p.code})`,
+    partInput: `${p.name} (${p.code}${p.old_code ? ` / ${p.old_code}` : ""})`,
     partCode: p.code,
     qty: ""
   };
@@ -312,6 +331,7 @@ const resolveBomCode = (raw, type) => {
   const found = products.value.find(p =>
     p.type === type &&
     ((p.code || "").toLowerCase() === lower ||
+      (p.old_code || "").toLowerCase() === lower ||
       (p.name || "").toLowerCase() === lower)
   );
   return found ? found.code : value;
@@ -741,7 +761,7 @@ const deferHide = (fn) => {
                 @click="selectBomParent(p)"
                 class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
               >
-                {{ p.name }} ({{ p.code }})
+                {{ p.name }} ({{ p.code }} / {{ p.old_code || "-" }})
               </div>
             </div>
           </div>
@@ -766,7 +786,7 @@ const deferHide = (fn) => {
                 @click="toggleBomQuickPart(p)"
               >
                 <input type="checkbox" class="h-4 w-4" :checked="isBomQuickChecked(p.code)" />
-                <span>{{ p.name }} ({{ p.code }})</span>
+                <span>{{ p.name }} ({{ p.code }} / {{ p.old_code || "-" }})</span>
               </div>
             </div>
           </div>
@@ -802,7 +822,7 @@ const deferHide = (fn) => {
                   @click="selectBomPart(idx, p)"
                   class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
                 >
-                  {{ p.name }} ({{ p.code }})
+                  {{ p.name }} ({{ p.code }} / {{ p.old_code || "-" }})
                 </div>
               </div>
             </div>
