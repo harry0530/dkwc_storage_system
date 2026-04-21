@@ -77,6 +77,29 @@ def _find_parts_sheet(workbook):
     return selected_ws, selected_header, selected_col, header_row
 
 
+def _generate_auto_part_code(db: Session, reserved_codes: set[str]):
+    max_numeric = 0
+
+    existing_codes = db.query(models.Product.new_code).all()
+    for (existing_code,) in existing_codes:
+        code = (existing_code or "").strip()
+        if code.isdigit():
+            max_numeric = max(max_numeric, int(code))
+
+    for code in reserved_codes:
+        if code.isdigit():
+            max_numeric = max(max_numeric, int(code))
+
+    next_number = max_numeric + 1
+    next_code = str(next_number).zfill(max(3, len(str(next_number))))
+    while next_code in reserved_codes:
+        next_number += 1
+        next_code = str(next_number).zfill(max(3, len(str(next_number))))
+
+    reserved_codes.add(next_code)
+    return next_code
+
+
 # 🔥 핵심 수정 부분
 @router.post("/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
@@ -148,6 +171,12 @@ def import_parts(
     parsed_rows = []
     duplicate_codes = []
     rows_total = 0
+    auto_generated = 0
+    reserved_codes = {
+        (code or "").strip()
+        for (code,) in db.query(models.Product.new_code).all()
+        if (code or "").strip()
+    }
 
     for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
         if not row or not any(value not in (None, "") for value in row):
@@ -156,8 +185,10 @@ def import_parts(
         rows_total += 1
         new_code = _normalize_excel_code(row[col["new_code"]])
         if not new_code:
-            parsed_rows.append({"is_blank": True})
-            continue
+            new_code = _generate_auto_part_code(db, reserved_codes)
+            auto_generated += 1
+        else:
+            reserved_codes.add(new_code)
 
         parsed = {
             "old_code": _normalize_excel_code(row[col["old_code"]]),
@@ -261,6 +292,7 @@ def import_parts(
         "updated": updated,
         "skipped": skipped,
         "rows_total": rows_total,
+        "auto_generated": auto_generated,
         "duplicate_action": duplicate_action,
         "sheet": ws.title,
         "header": header,
