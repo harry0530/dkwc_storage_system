@@ -100,6 +100,31 @@ def _generate_auto_part_code(db: Session, reserved_codes: set[str]):
     return next_code
 
 
+def _generate_auto_finished_code(db: Session, reserved_codes: set[str]):
+    max_numeric = -1
+
+    existing_codes = db.query(models.Product.new_code).filter(
+        models.Product.type == "FINISHED"
+    ).all()
+    for (existing_code,) in existing_codes:
+        code = (existing_code or "").strip()
+        if code.isdigit():
+            max_numeric = max(max_numeric, int(code))
+
+    for code in reserved_codes:
+        if code.isdigit():
+            max_numeric = max(max_numeric, int(code))
+
+    next_number = max_numeric + 1
+    next_code = str(next_number).zfill(4)
+    while next_code in reserved_codes:
+        next_number += 1
+        next_code = str(next_number).zfill(4)
+
+    reserved_codes.add(next_code)
+    return next_code
+
+
 def _normalize_product_fields(
     product_type: str,
     *,
@@ -379,11 +404,17 @@ def import_finished(
             raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
 
     rows_total = 0
+    auto_generated = 0
     created = 0
     updated = 0
     skipped = 0
     duplicate_codes = []
     parsed_rows = []
+    reserved_codes = {
+        (code or "").strip()
+        for (code,) in db.query(models.Product.new_code).all()
+        if (code or "").strip()
+    }
 
     for row in ws.iter_rows(min_row=2, values_only=True):
         if not row or not any(value not in (None, "") for value in row):
@@ -399,7 +430,10 @@ def import_finished(
         bom_text = str(row[col["BOM"]] or "").strip() if "BOM" in col else ""
 
         if not new_code:
-            continue
+            new_code = _generate_auto_finished_code(db, reserved_codes)
+            auto_generated += 1
+        else:
+            reserved_codes.add(new_code)
 
         parsed_rows.append({
             "old_code": old_code,
@@ -501,6 +535,7 @@ def import_finished(
         "updated": updated,
         "skipped": skipped,
         "rows_total": rows_total,
+        "auto_generated": auto_generated,
         "duplicate_action": duplicate_action,
     }
 
