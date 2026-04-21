@@ -22,6 +22,16 @@ PART_IMPORT_ALIASES = {
     "supplier_name": ["납품처", "발주처"],
 }
 
+FINISHED_IMPORT_ALIASES = {
+    "old_code": ["구품번", "완제품 구품번"],
+    "new_code": ["신품번", "완제품 신품번"],
+    "name": ["품명"],
+    "spec": ["규격"],
+    "drawing_number": ["도번", "drawing_number"],
+    "material": ["재질"],
+    "bom_text": ["BOM"],
+}
+
 
 def _normalize_excel_value(value):
     return str(value or "").strip()
@@ -46,15 +56,20 @@ def _to_int(value):
         raise HTTPException(status_code=400, detail=f"숫자 형식 오류: {text}") from exc
 
 
-def _build_part_header_map(values):
+def _build_header_map(values, aliases_map):
     header_values = [_normalize_excel_value(v) for v in values]
     raw_mapping = {name: idx for idx, name in enumerate(header_values) if name}
     canonical_mapping = {}
-    for canonical_name, aliases in PART_IMPORT_ALIASES.items():
+    for canonical_name, aliases in aliases_map.items():
         for alias in aliases:
             if alias in raw_mapping:
                 canonical_mapping[canonical_name] = raw_mapping[alias]
                 break
+    return header_values, canonical_mapping
+
+
+def _build_part_header_map(values):
+    header_values, canonical_mapping = _build_header_map(values, PART_IMPORT_ALIASES)
     return header_values, canonical_mapping
 
 
@@ -395,13 +410,15 @@ def import_finished(
     wb = openpyxl.load_workbook(BytesIO(content))
     ws = wb.active
 
-    header = [_normalize_excel_value(cell.value) for cell in ws[1]]
-    col = {name: idx for idx, name in enumerate(header) if name}
+    header, col = _build_header_map(
+        [cell.value for cell in ws[1]],
+        FINISHED_IMPORT_ALIASES,
+    )
 
-    required = ["신품번", "구품번", "품명", "규격"]
-    for r in required:
-        if r not in col:
-            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {r} 컬럼 없음")
+    required = ["old_code", "new_code", "name", "spec"]
+    for required_name in required:
+        if required_name not in col:
+            raise HTTPException(status_code=400, detail=f"엑셀 형식 오류: {required_name} 컬럼 없음")
 
     rows_total = 0
     auto_generated = 0
@@ -421,13 +438,13 @@ def import_finished(
             continue
 
         rows_total += 1
-        old_code = str(row[col["구품번"]] or "").strip()
-        new_code = str(row[col["신품번"]] or "").strip()
-        drawing_number = str(row[col["도번"]] or "").strip() if "도번" in col else ""
-        name = str(row[col["품명"]] or "").strip()
-        spec = str(row[col["규격"]] or "").strip()
-        material = str(row[col["재질"]] or "").strip() if "재질" in col else ""
-        bom_text = str(row[col["BOM"]] or "").strip() if "BOM" in col else ""
+        old_code = _normalize_excel_code(row[col["old_code"]])
+        new_code = _normalize_excel_code(row[col["new_code"]])
+        drawing_number = _normalize_excel_value(row[col["drawing_number"]]) if "drawing_number" in col else ""
+        name = _normalize_excel_value(row[col["name"]])
+        spec = _normalize_excel_value(row[col["spec"]])
+        material = _normalize_excel_value(row[col["material"]]) if "material" in col else ""
+        bom_text = _normalize_excel_value(row[col["bom_text"]]) if "bom_text" in col else ""
 
         if not new_code:
             new_code = _generate_auto_finished_code(db, reserved_codes)
