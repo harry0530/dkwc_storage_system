@@ -100,6 +100,43 @@ def _generate_auto_part_code(db: Session, reserved_codes: set[str]):
     return next_code
 
 
+def _normalize_product_fields(
+    product_type: str,
+    *,
+    old_code: str = "",
+    drawing_number: str = "",
+    name: str = "",
+    material: str = "",
+    spec: str = "",
+    quantity: int = 0,
+    location: str = "",
+    min_stock: int = 0,
+    supplier_company_id=None,
+):
+    normalized_type = (product_type or "").strip().upper()
+    normalized = {
+        "old_code": (old_code or "").strip(),
+        "drawing_number": (drawing_number or "").strip(),
+        "name": (name or "").strip(),
+        "type": normalized_type,
+        "material": (material or "").strip(),
+        "spec": (spec or "").strip(),
+        "quantity": quantity or 0,
+        "location": (location or "").strip(),
+        "min_stock": min_stock or 0,
+        "supplier_company_id": supplier_company_id,
+    }
+
+    if normalized_type == "FINISHED":
+        normalized["material"] = ""
+        normalized["quantity"] = 0
+        normalized["location"] = ""
+        normalized["min_stock"] = 0
+        normalized["supplier_company_id"] = None
+
+    return normalized
+
+
 # 🔥 핵심 수정 부분
 @router.post("/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
@@ -112,18 +149,31 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     if existing:
         raise HTTPException(status_code=400, detail="이미 존재하는 품번")
 
-    db_product = models.Product(
-        old_code=(product.old_code or "").strip(),
-        new_code=code,
-        drawing_number=(product.drawing_number or "").strip(),
+    normalized = _normalize_product_fields(
+        product.type,
+        old_code=product.old_code,
+        drawing_number=product.drawing_number,
         name=name,
-        type=product.type,
-        material=(product.material or "").strip(),
-        spec=(product.spec or "").strip(),
+        material=product.material,
+        spec=product.spec,
         quantity=product.quantity or 0,
-        location=(product.location or "").strip(),
+        location=product.location,
         min_stock=product.min_stock,
-        supplier_company_id=product.supplier_company_id
+        supplier_company_id=product.supplier_company_id,
+    )
+
+    db_product = models.Product(
+        old_code=normalized["old_code"],
+        new_code=code,
+        drawing_number=normalized["drawing_number"],
+        name=normalized["name"],
+        type=normalized["type"],
+        material=normalized["material"],
+        spec=normalized["spec"],
+        quantity=normalized["quantity"],
+        location=normalized["location"],
+        min_stock=normalized["min_stock"],
+        supplier_company_id=normalized["supplier_company_id"]
     )
 
     db.add(db_product)
@@ -443,18 +493,31 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
     if not product:
         raise HTTPException(status_code=404, detail="제품 없음")
 
-    product.old_code = data.get("old_code", product.old_code)
-    product.drawing_number = data.get("drawing_number", product.drawing_number)
-    product.name = data.get("name", product.name)
-    product.type = data.get("type", product.type)
-    product.material = data.get("material", product.material)
-    product.spec = data.get("spec", product.spec)
-    product.location = data.get("location", product.location)
-    product.min_stock = data.get("min_stock", product.min_stock)
-    product.quantity = data.get("quantity", product.quantity)
-    product.supplier_company_id = data.get(
-        "supplier_company_id", product.supplier_company_id
+    normalized = _normalize_product_fields(
+        data.get("type", product.type),
+        old_code=data.get("old_code", product.old_code),
+        drawing_number=data.get("drawing_number", product.drawing_number),
+        name=data.get("name", product.name),
+        material=data.get("material", product.material),
+        spec=data.get("spec", product.spec),
+        quantity=data.get("quantity", product.quantity),
+        location=data.get("location", product.location),
+        min_stock=data.get("min_stock", product.min_stock),
+        supplier_company_id=data.get(
+            "supplier_company_id", product.supplier_company_id
+        ),
     )
+
+    product.old_code = normalized["old_code"]
+    product.drawing_number = normalized["drawing_number"]
+    product.name = normalized["name"]
+    product.type = normalized["type"]
+    product.material = normalized["material"]
+    product.spec = normalized["spec"]
+    product.location = normalized["location"]
+    product.min_stock = normalized["min_stock"]
+    product.quantity = normalized["quantity"]
+    product.supplier_company_id = normalized["supplier_company_id"]
 
     db.commit()
     return product

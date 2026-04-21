@@ -82,28 +82,6 @@ const createProduct = async () => {
   const nameValue = (name.value || "").trim();
   if (!codeValue) return alert("품번 입력");
 
-  let supplierId = supplierCompanyId.value
-    ? Number(supplierCompanyId.value)
-    : null;
-  if (!supplierId && supplierInput.value.trim()) {
-    const match = companies.value.find(
-      (c) => (c.name || "").trim().toLowerCase() === supplierInput.value.trim().toLowerCase()
-    );
-    if (match) {
-      supplierId = match.id;
-    } else {
-      const created = await api.post("/companies/", {
-        name: supplierInput.value.trim(),
-        phone: "",
-        fax: "",
-        address: "",
-        email: ""
-      });
-      supplierId = created?.data?.id || null;
-      await loadData();
-    }
-  }
-
   try {
     await api.post("/products/", {
       code: codeValue,
@@ -112,9 +90,9 @@ const createProduct = async () => {
       location: "",
       min_stock: 0,
       old_code: oldCodeInput.value.trim(),
-      material: materialInput.value.trim(),
+      material: "",
       spec: specInput.value.trim(),
-      supplier_company_id: supplierId
+      supplier_company_id: null
     });
   } catch (err) {
     const message =
@@ -133,11 +111,11 @@ const createProduct = async () => {
             name: nameValue || existing.name,
             type: type.value,
             old_code: oldCodeInput.value.trim() || existing.old_code || "",
-            material: materialInput.value.trim() || existing.material || "",
+            material: "",
             spec: specInput.value.trim() || existing.spec || "",
             location: "",
             min_stock: 0,
-            supplier_company_id: supplierId
+            supplier_company_id: null
           });
           loadData();
           return;
@@ -151,7 +129,6 @@ const createProduct = async () => {
   code.value = "";
   oldCodeInput.value = "";
   name.value = "";
-  materialInput.value = "";
   specInput.value = "";
   supplierCompanyId.value = "";
   supplierInput.value = "";
@@ -571,32 +548,6 @@ const deferHide = (fn) => {
             placeholder="규격"
             class="input w-32" />
 
-          <input v-model="materialInput"
-            placeholder="재질"
-            class="input w-32" />
-
-          <div class="relative w-48" @click.stop>
-            <input
-              v-model="supplierInput"
-              @focus="showSupplierDropdown = true"
-              @blur="deferHide(() => showSupplierDropdown = false)"
-              placeholder="납품처"
-              class="input w-full"
-            />
-            <div
-              v-if="showSupplierDropdown && filteredSupplierSuggestions.length"
-              class="absolute bg-white border w-full z-20 max-h-40 overflow-y-auto shadow rounded-lg"
-            >
-              <div
-                v-for="c in filteredSupplierSuggestions"
-                :key="`supplier-${c.id}`"
-                @click="selectSupplierSuggestion(c)"
-                class="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-              >
-                {{ c.name }}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -685,63 +636,43 @@ const deferHide = (fn) => {
             <th class="p-3">신품번</th>
             <th class="p-3">제품명</th>
             <th class="p-3">규격</th>
-            <th class="p-3">재질</th>
-            <th class="p-3">BOM</th>
-            <th class="p-3">납품처</th>
-            <th class="p-3">관리</th>
           </tr>
         </thead>
 
         <tbody>
           <template v-for="p in filteredProducts" :key="p.code">
-            <tr class="border-t">
+            <tr class="border-t cursor-pointer hover:bg-slate-50/70" @click="toggleBOM(p.code)">
 
             <td class="p-3 font-semibold">
               {{ p.old_code || "-" }}
             </td>
             <td class="p-3">
               <button class="text-left font-semibold text-slate-900 hover:underline"
-                @click="toggleBOM(p.code)">
+                @click.stop="toggleBOM(p.code)">
                 {{ p.code }}
               </button>
             </td>
             <td class="p-3">
               <button class="text-left text-slate-700 hover:underline"
-                @click="toggleBOM(p.code)">
+                @click.stop="toggleBOM(p.code)">
                 {{ p.name }}
               </button>
             </td>
             <td class="p-3">{{ p.spec || "-" }}</td>
-            <td class="p-3">{{ p.material || "-" }}</td>
-
-            <!-- ⭐ BOM -->
-            <td class="p-3">
-              <span class="text-xs text-slate-500">
-                {{ expandedBOM[p.code] ? "접기" : "보기" }}
-              </span>
-            </td>
-
-            <!-- 납품처 -->
-            <td class="p-3">
-              <span class="text-sm text-slate-700">
-                {{ companies.find(c => c.id === p.supplier_company_id)?.name || "-" }}
-              </span>
-            </td>
-
-              <td class="p-3">
-                <button
-                  @click="deleteProduct(p.code)"
-                  class="btn btn-danger h-8 px-2 text-xs"
-                >
-                  삭제
-                </button>
-              </td>
             </tr>
 
             <tr v-if="expandedBOM[p.code]" class="border-t bg-slate-50/70">
-              <td colspan="8" class="p-3">
+              <td colspan="4" class="p-3">
                 <div class="panel bg-white/60">
-                  <div class="panel-header">BOM</div>
+                  <div class="panel-header flex items-center justify-between">
+                    <span>BOM</span>
+                    <button
+                      @click.stop="deleteProduct(p.code)"
+                      class="btn btn-danger h-8 px-2 text-xs"
+                    >
+                      삭제
+                    </button>
+                  </div>
                   <div class="p-3">
                     <div
                       v-for="b in getBOM(p.code)"
