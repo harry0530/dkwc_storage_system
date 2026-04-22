@@ -7,6 +7,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
+from typing import Optional
 
 import openpyxl
 
@@ -36,7 +37,91 @@ def _clear_item_rows(ws, start_row: int, end_row: int):
             ws.cell(r, c).value = None
 
 
-def _render_items(ws, orders: list[models.PurchaseOrder], db: Session):
+def _get_bom_children(db: Session, parent_code: str):
+    return db.query(models.BOM).filter(models.BOM.parent_code == parent_code).all()
+
+
+def _build_row(
+    *,
+    part_or_finished: Optional[models.Product],
+    fallback_code: str,
+    finished_qty: int | None,
+    part_qty: int | None,
+    note: str = "",
+):
+    old_code = part_or_finished.old_code if part_or_finished and part_or_finished.old_code else ""
+    new_code = part_or_finished.new_code if part_or_finished else fallback_code
+    drawing_number = (part_or_finished.drawing_number or "").strip() if part_or_finished else ""
+
+    return {
+        "code": old_code or new_code,
+        "drawing_number": drawing_number or new_code,
+        "name": part_or_finished.name if part_or_finished else "",
+        "spec": part_or_finished.spec if part_or_finished else "",
+        "material": part_or_finished.material if part_or_finished else "",
+        "finished_qty": finished_qty if finished_qty is not None else "",
+        "part_qty": part_qty if part_qty is not None else "",
+        "heat_treatment": part_or_finished.heat_treatment if part_or_finished else "",
+        "welding": part_or_finished.welding if part_or_finished else "",
+        "plating": part_or_finished.plating if part_or_finished else "",
+        "note": note,
+    }
+
+
+def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder]):
+    rows = []
+
+    for order in orders:
+        product = db.query(models.Product).filter(
+            models.Product.new_code == order.product_code
+        ).first()
+
+        qty = int(order.quantity or 0)
+        product_type = (product.type or "").upper() if product else ""
+
+        if product and product_type == "FINISHED":
+            rows.append(
+                _build_row(
+                    part_or_finished=product,
+                    fallback_code=order.product_code,
+                    finished_qty=qty,
+                    part_qty=None,
+                )
+            )
+
+            boms = _get_bom_children(db, product.new_code)
+            if not boms:
+                rows[-1]["note"] = "BOM 없음"
+                continue
+
+            for bom in boms:
+                child_product = db.query(models.Product).filter(
+                    models.Product.new_code == bom.child_code
+                ).first()
+                child_qty = int(bom.quantity or 0) * qty
+                rows.append(
+                    _build_row(
+                        part_or_finished=child_product,
+                        fallback_code=bom.child_code,
+                        finished_qty=None,
+                        part_qty=child_qty,
+                    )
+                )
+        else:
+            # Default: treat as PART purchase order.
+            rows.append(
+                _build_row(
+                    part_or_finished=product,
+                    fallback_code=order.product_code,
+                    finished_qty=None,
+                    part_qty=qty,
+                )
+            )
+
+    return rows
+
+
+def _render_expanded_rows(ws, expanded_rows: list[dict]):
     # Template header row is 5, items start at 6.
     start_row = 6
 
@@ -48,30 +133,27 @@ def _render_items(ws, orders: list[models.PurchaseOrder], db: Session):
 
     _clear_item_rows(ws, start_row, last_item_row)
 
-    for idx, order in enumerate(orders[:capacity]):
+    for idx, entry in enumerate(expanded_rows[:capacity]):
         row = start_row + idx
-        product = db.query(models.Product).filter(
-            models.Product.new_code == order.product_code
-        ).first()
+        ws.cell(row, 1).value = entry["code"]  # 품번
+        ws.cell(row, 2).value = entry["drawing_number"]  # 도번
+        ws.cell(row, 3).value = entry["name"]  # 품명
+        ws.cell(row, 4).value = entry["spec"]  # 규격
+        ws.cell(row, 5).value = entry["material"]  # 재질
+        ws.cell(row, 6).value = entry["finished_qty"]  # 완제품수량
+        ws.cell(row, 7).value = entry["part_qty"]  # 단품 수량
+        ws.cell(row, 8).value = entry["heat_treatment"]  # 열처리
+        ws.cell(row, 9).value = entry["welding"]  # 용접
+        ws.cell(row, 10).value = entry["plating"]  # 도금
+        ws.cell(row, 11).value = entry["note"]  # 비고
 
-        old_code = product.old_code if product and product.old_code else ""
-        new_code = product.new_code if product else order.product_code
-        drawing_number = (product.drawing_number or "").strip() if product else ""
-
-        ws.cell(row, 1).value = old_code or new_code  # 품번
-        ws.cell(row, 2).value = drawing_number or new_code  # 도번(템플릿 표기)
-        ws.cell(row, 3).value = product.name if product else ""  # 품명
-        ws.cell(row, 4).value = product.spec if product else ""  # 규격
-        ws.cell(row, 5).value = product.material if product else ""  # 재질
-        ws.cell(row, 6).value = ""  # 완제품수량 (미사용)
-        ws.cell(row, 7).value = order.quantity  # 단품 수량
-        ws.cell(row, 8).value = product.heat_treatment if product else ""  # 열처리
-        ws.cell(row, 9).value = product.welding if product else ""  # 용접
-        ws.cell(row, 10).value = product.plating if product else ""  # 도금
-        ws.cell(row, 11).value = ""  # 비고
-
-    remaining = orders[capacity:]
+    remaining = expanded_rows[capacity:]
     return remaining
+
+
+def _render_items(ws, orders: list[models.PurchaseOrder], db: Session):
+    expanded_rows = _expand_orders_for_template(db, orders)
+    return _render_expanded_rows(ws, expanded_rows)
 
 def resolve_product(db: Session, input_code: str):
     product = db.query(models.Product).filter(
@@ -298,22 +380,32 @@ def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
     if not TEMPLATE_PATH.exists():
         raise HTTPException(status_code=500, detail="발주서 템플릿 파일이 없습니다")
 
-    # Paginate if orders exceed one template page.
     wb = openpyxl.load_workbook(TEMPLATE_PATH)
-    base_ws = wb.active
-    base_ws.title = "발주서"
+    template_ws = wb.active
+
+    # Keep a pristine copy for pagination.
+    pristine = wb.copy_worksheet(template_ws)
+    pristine.title = "__template__"
+    pristine.sheet_state = "hidden"
 
     created_at = batch.created_at or datetime.utcnow()
+
+    # First page uses the original active sheet.
+    base_ws = template_ws
+    base_ws.title = "발주서"
     _write_purchase_dates(base_ws, created_at)
 
     remaining = _render_items(base_ws, orders, db)
     page = 2
     while remaining:
-        ws = wb.copy_worksheet(base_ws)
+        ws = wb.copy_worksheet(pristine)
         ws.title = f"발주서({page})"
         _write_purchase_dates(ws, created_at)
-        remaining = _render_items(ws, remaining, db)
+        remaining = _render_expanded_rows(ws, remaining)
         page += 1
+
+    # Drop the hidden template before exporting.
+    wb.remove(pristine)
 
     output = BytesIO()
     wb.save(output)
