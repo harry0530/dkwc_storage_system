@@ -30,7 +30,12 @@ def _pick_free_rid(existing: set[str], start: int = 2) -> str:
         i += 1
 
 
-def _merge_content_types(*, out_xml: bytes, template_xml: bytes) -> bytes:
+def _merge_content_types(
+    *,
+    out_xml: bytes,
+    template_xml: bytes,
+    extra_overrides: dict[str, str] | None = None,
+) -> bytes:
     # openpyxl drops drawings/media parts, which also removes Content_Types entries.
     # We merge template entries back so Office can load the embedded images/VML.
     ET.register_namespace("", "http://schemas.openxmlformats.org/package/2006/content-types")
@@ -52,6 +57,19 @@ def _merge_content_types(*, out_xml: bytes, template_xml: bytes) -> bytes:
             continue
         out_root.append(e)
         existing.add(k)
+
+    if extra_overrides:
+        for part_name, content_type in extra_overrides.items():
+            k = ("Override", part_name)
+            if k in existing:
+                continue
+            ET.SubElement(
+                out_root,
+                "{http://schemas.openxmlformats.org/package/2006/content-types}Override",
+                PartName=part_name,
+                ContentType=content_type,
+            )
+            existing.add(k)
 
     return ET.tostring(out_root, encoding="utf-8", xml_declaration=True)
 
@@ -87,7 +105,13 @@ def _ensure_sheet_has_drawings(*, sheet_xml: bytes, drawing_rid: str, vml_rid: s
     return text.encode("utf-8")
 
 
-def _ensure_sheet_rels_has_drawings(*, rels_xml: bytes) -> tuple[bytes, dict[str, str]]:
+def _ensure_sheet_rels_has_drawings(
+    *,
+    rels_xml: bytes,
+    drawing_target: str,
+    vml_target: str,
+    vmlhf_target: str,
+) -> tuple[bytes, dict[str, str]]:
     """
     Ensures a sheet rels file contains relationships to:
       - drawing1.xml
@@ -126,15 +150,15 @@ def _ensure_sheet_rels_has_drawings(*, rels_xml: bytes) -> tuple[bytes, dict[str
 
     rid_drawing = _ensure(
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing",
-        "../drawings/drawing1.xml",
+        drawing_target,
     )
     rid_vml = _ensure(
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
-        "../drawings/vmlDrawing1.vml",
+        vml_target,
     )
     rid_vmlhf = _ensure(
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
-        "../drawings/vmlDrawing2.vml",
+        vmlhf_target,
     )
 
     return (
@@ -156,15 +180,71 @@ def _restore_template_drawings(*, xlsx_bytes: bytes, template_path: Path) -> byt
     ) as tmpl_zip, zipfile.ZipFile(out_buf, "w", compression=zipfile.ZIP_DEFLATED) as new_zip:
         out_names = set(out_zip.namelist())
 
+        # Template drawing parts (single-sheet) that we'll reuse per output sheet.
+        tmpl_drawing_xml = tmpl_zip.read("xl/drawings/drawing1.xml")
+        tmpl_drawing_rels = tmpl_zip.read("xl/drawings/_rels/drawing1.xml.rels")
+        tmpl_vml1 = tmpl_zip.read("xl/drawings/vmlDrawing1.vml")
+        tmpl_vml1_rels = tmpl_zip.read("xl/drawings/_rels/vmlDrawing1.vml.rels")
+        tmpl_vml2 = tmpl_zip.read("xl/drawings/vmlDrawing2.vml")
+        tmpl_vml2_rels = tmpl_zip.read("xl/drawings/_rels/vmlDrawing2.vml.rels")
+
+        # Determine the content-type used for drawing xml so we can add overrides for drawing2+.
+        drawing_ct = None
+        try:
+            ct_root = ET.fromstring(tmpl_zip.read("[Content_Types].xml"))
+            ct_ns = ct_root.tag.split("}")[0].strip("{") if "}" in ct_root.tag else ""
+            for o in ct_root.findall(f"{{{ct_ns}}}Override"):
+                if o.get("PartName") == "/xl/drawings/drawing1.xml":
+                    drawing_ct = o.get("ContentType")
+                    break
+        except Exception:
+            drawing_ct = None
+
+        extra_overrides: dict[str, str] = {}
+
         # Precompute relationship IDs per sheet so we can inject matching r:ids into sheet XML.
         sheet_rid_map: dict[str, dict[str, str]] = {}
         for name in out_names:
             if not (name.startswith("xl/worksheets/_rels/sheet") and name.endswith(".xml.rels")):
                 continue
-            updated_rels, rid_map = _ensure_sheet_rels_has_drawings(rels_xml=out_zip.read(name))
             sheet_xml_name = name.replace("xl/worksheets/_rels/", "xl/worksheets/").replace(".rels", "")
+            try:
+                sheet_num = int(Path(sheet_xml_name).stem.replace("sheet", ""))
+            except Exception:
+                sheet_num = 1
+
+            updated_rels, rid_map = _ensure_sheet_rels_has_drawings(
+                rels_xml=out_zip.read(name),
+                drawing_target=f"../drawings/drawing{sheet_num}.xml",
+                vml_target=f"../drawings/vmlDrawing{(sheet_num * 2) - 1}.vml",
+                vmlhf_target=f"../drawings/vmlDrawing{sheet_num * 2}.vml",
+            )
             sheet_rid_map[sheet_xml_name] = rid_map
             new_zip.writestr(name, updated_rels)
+
+            # Each output sheet gets its own drawing/vml parts to avoid Excel repair prompts.
+            drawing_name = f"xl/drawings/drawing{sheet_num}.xml"
+            drawing_rels_name = f"xl/drawings/_rels/drawing{sheet_num}.xml.rels"
+            vml_name = f"xl/drawings/vmlDrawing{(sheet_num * 2) - 1}.vml"
+            vml_rels_name = f"xl/drawings/_rels/vmlDrawing{(sheet_num * 2) - 1}.vml.rels"
+            vmlhf_name = f"xl/drawings/vmlDrawing{sheet_num * 2}.vml"
+            vmlhf_rels_name = f"xl/drawings/_rels/vmlDrawing{sheet_num * 2}.vml.rels"
+
+            if drawing_name not in out_names:
+                new_zip.writestr(drawing_name, tmpl_drawing_xml)
+            if drawing_rels_name not in out_names:
+                new_zip.writestr(drawing_rels_name, tmpl_drawing_rels)
+            if vml_name not in out_names:
+                new_zip.writestr(vml_name, tmpl_vml1)
+            if vml_rels_name not in out_names:
+                new_zip.writestr(vml_rels_name, tmpl_vml1_rels)
+            if vmlhf_name not in out_names:
+                new_zip.writestr(vmlhf_name, tmpl_vml2)
+            if vmlhf_rels_name not in out_names:
+                new_zip.writestr(vmlhf_rels_name, tmpl_vml2_rels)
+
+            if drawing_ct:
+                extra_overrides[f"/xl/drawings/drawing{sheet_num}.xml"] = drawing_ct
 
         # Copy everything else, patching sheet XML and Content_Types as needed.
         for info in out_zip.infolist():
@@ -175,7 +255,11 @@ def _restore_template_drawings(*, xlsx_bytes: bytes, template_path: Path) -> byt
             data = out_zip.read(name)
 
             if name == "[Content_Types].xml":
-                data = _merge_content_types(out_xml=data, template_xml=tmpl_zip.read(name))
+                data = _merge_content_types(
+                    out_xml=data,
+                    template_xml=tmpl_zip.read(name),
+                    extra_overrides=extra_overrides,
+                )
 
             if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"):
                 rid_map = sheet_rid_map.get(name)
@@ -189,11 +273,10 @@ def _restore_template_drawings(*, xlsx_bytes: bytes, template_path: Path) -> byt
 
             new_zip.writestr(info, data)
 
-        # Copy the template drawing/media parts (and printer settings) into the output if missing.
+        # Copy the template media parts (and printer settings) into the output if missing.
         for name in tmpl_zip.namelist():
             if not (
-                name.startswith("xl/drawings/")
-                or name.startswith("xl/media/")
+                name.startswith("xl/media/")
                 or name.startswith("xl/printerSettings/")
             ):
                 continue
