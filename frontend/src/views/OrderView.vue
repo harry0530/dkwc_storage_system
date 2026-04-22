@@ -410,9 +410,6 @@ const createOrder = async () => {
 // 발주 생성 (모달, 다중 품목)
 // =====================
 const createPurchaseOrders = async () => {
-  const companyName = purchaseSelectedCompany.value || purchaseCompanyInput.value;
-  if (!companyName) return alert("납품처를 입력하세요.");
-
   const payloads = [];
 
   for (let i = 0; i < purchaseRows.value.length; i += 1) {
@@ -433,7 +430,6 @@ const createPurchaseOrders = async () => {
     payloads.push({
       product_code: result.realCode,
       quantity: qty,
-      company: companyName
     });
   }
 
@@ -442,7 +438,6 @@ const createPurchaseOrders = async () => {
   }
 
   const batchRes = await api.post("/purchase-orders/batch", {
-    company: companyName,
     due_date: (purchaseDueDate.value || "").trim() || null,
     items: payloads.map((payload) => ({
       product_code: payload.product_code,
@@ -675,6 +670,24 @@ const purchaseBatches = computed(() => {
 
   return Array.from(map.values()).sort((a, b) => (b.batch_id || 0) - (a.batch_id || 0));
 });
+
+const getPurchaseBatchTitle = (batch) => {
+  const items = Array.isArray(batch?.items) ? batch.items : [];
+  const finishedItem = items.find((o) => {
+    const code = o?.product_code || o?.productCode || "";
+    const resolved = resolveProduct(code);
+    const t = (resolved?.product?.type || "").toString().toUpperCase();
+    return t === "FINISHED";
+  });
+
+  if (finishedItem) {
+    const code = finishedItem?.product_code || finishedItem?.productCode || "";
+    const resolved = resolveProduct(code);
+    return finishedItem?.product_name || resolved?.product?.name || "완제품";
+  }
+
+  return "단품";
+};
 
 
 const formatOrderTime = (dateValue) => {
@@ -1044,8 +1057,8 @@ const deletePurchaseBatch = async (batchId) => {
                 <td class="p-3 font-semibold" colspan="8">
                   <div class="flex items-center justify-between gap-3">
                     <div>
-                      {{ purchaseBatchIdMap.get(batchKey(batch)) || "-" }} · {{ batch.company }} ·
-                      <span class="text-slate-500">발주시간 {{ formatOrderDate(batch.created_at) }}</span>
+                      <span class="text-slate-500">{{ formatOrderDate(batch.created_at) }}</span>
+                      · {{ getPurchaseBatchTitle(batch) }}
                     </div>
                     <div class="flex items-center gap-2">
                       <button
@@ -1190,25 +1203,6 @@ const deletePurchaseBatch = async (batchId) => {
           </div>
           <div class="p-4 flex flex-col gap-3 overflow-y-auto max-h-[75vh]">
             <div class="flex flex-wrap gap-3 items-start">
-              <div class="relative w-64" @click.stop>
-                <input
-                  v-model="purchaseCompanyInput"
-                  @focus="showPurchaseCompanyDropdown = true"
-                  @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
-                  placeholder="납품처"
-                  class="input w-full"
-                />
-                <div v-if="showPurchaseCompanyDropdown"
-                  class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
-                  <div v-for="c in filteredPurchaseCompanies"
-                    :key="c.id"
-                    @click="selectPurchaseCompany(c)"
-                    class="p-2 hover:bg-slate-100 cursor-pointer">
-                    {{ c.name }}
-                  </div>
-                </div>
-              </div>
-
               <div class="w-48">
                 <input
                   v-model="purchaseDueDate"

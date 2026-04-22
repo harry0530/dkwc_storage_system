@@ -334,22 +334,34 @@ def _get_bom_children(db: Session, parent_code: str):
     return db.query(models.BOM).filter(models.BOM.parent_code == parent_code).all()
 
 
+def _get_company_name(db: Session, company_id: int | None) -> str:
+    if not company_id:
+        return ""
+    c = db.query(models.Company).filter(models.Company.id == company_id).first()
+    return (c.name or "").strip() if c else ""
+
+
 def _build_row(
     *,
     part_or_finished: Optional[models.Product],
     fallback_code: str,
     finished_qty: int | None,
     part_qty: int | None,
+    purchase_company: str = "",
     note: str = "",
 ):
     old_code = part_or_finished.old_code if part_or_finished and part_or_finished.old_code else ""
     new_code = part_or_finished.new_code if part_or_finished else fallback_code
     drawing_number = (part_or_finished.drawing_number or "").strip() if part_or_finished else ""
 
+    name = part_or_finished.name if part_or_finished else ""
+    if note:
+        name = f"{name} ({note})" if name else note
+
     return {
         "code": old_code or new_code,
         "drawing_number": drawing_number or new_code,
-        "name": part_or_finished.name if part_or_finished else "",
+        "name": name,
         "spec": part_or_finished.spec if part_or_finished else "",
         "material": part_or_finished.material if part_or_finished else "",
         "finished_qty": finished_qty if finished_qty is not None else "",
@@ -357,7 +369,7 @@ def _build_row(
         "heat_treatment": part_or_finished.heat_treatment if part_or_finished else "",
         "welding": part_or_finished.welding if part_or_finished else "",
         "plating": part_or_finished.plating if part_or_finished else "",
-        "note": note,
+        "purchase_company": (purchase_company or "").strip(),
     }
 
 
@@ -371,6 +383,9 @@ def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder])
 
         qty = int(order.quantity or 0)
         product_type = (product.type or "").upper() if product else ""
+        default_company = (order.company or "").strip()
+        product_company = _get_company_name(db, product.supplier_company_id) if product else ""
+        purchase_company = product_company or default_company
 
         if product and product_type == "FINISHED":
             rows.append(
@@ -379,18 +394,20 @@ def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder])
                     fallback_code=order.product_code,
                     finished_qty=qty,
                     part_qty=None,
+                    purchase_company=purchase_company,
                 )
             )
 
             boms = _get_bom_children(db, product.new_code)
             if not boms:
-                rows[-1]["note"] = "BOM 없음"
+                rows[-1]["name"] = f'{rows[-1]["name"]} (BOM 없음)'
                 continue
 
             for bom in boms:
                 child_product = db.query(models.Product).filter(
                     models.Product.new_code == bom.child_code
                 ).first()
+                child_company = _get_company_name(db, child_product.supplier_company_id) if child_product else ""
                 child_qty = int(bom.quantity or 0) * qty
                 rows.append(
                     _build_row(
@@ -398,6 +415,7 @@ def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder])
                         fallback_code=bom.child_code,
                         finished_qty=None,
                         part_qty=child_qty,
+                        purchase_company=child_company or purchase_company,
                     )
                 )
         else:
@@ -408,6 +426,7 @@ def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder])
                     fallback_code=order.product_code,
                     finished_qty=None,
                     part_qty=qty,
+                    purchase_company=purchase_company,
                 )
             )
 
@@ -418,8 +437,8 @@ def _render_expanded_rows(ws, expanded_rows: list[dict]):
     # Template header row is 5, items start at 6.
     start_row = 6
 
-    # Find footer row ("※ 비고 : ") to know how many lines are available.
-    footer_cell = _find_first_cell(ws, "※ 비고 : ")
+    # Find footer row ("※ 비고 :") to know how many lines are available.
+    footer_cell = _find_cell_by_normalized(ws, "※비고:") or _find_first_cell(ws, "※ 비고 : ")
     footer_row = footer_cell.row if footer_cell else (start_row + 28)
     last_item_row = max(start_row, footer_row - 2)
     capacity = last_item_row - start_row + 1
@@ -438,7 +457,7 @@ def _render_expanded_rows(ws, expanded_rows: list[dict]):
         ws.cell(row, 8).value = entry["heat_treatment"]  # 열처리
         ws.cell(row, 9).value = entry["welding"]  # 용접
         ws.cell(row, 10).value = entry["plating"]  # 도금
-        ws.cell(row, 11).value = entry["note"]  # 비고
+        ws.cell(row, 11).value = entry["purchase_company"]  # 발주처
 
     remaining = expanded_rows[capacity:]
     return remaining
@@ -620,8 +639,6 @@ def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
 @router.post("/batch")
 def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = Depends(get_db)):
     company = (data.company or "").strip()
-    if not company:
-        raise Exception("납품처가 필요합니다")
 
     if not data.items:
         raise Exception("발주 항목이 없습니다")
