@@ -51,6 +51,9 @@ def ensure_purchase_order_columns():
                     "CREATE TABLE IF NOT EXISTS purchase_order_batches ("
                     "id SERIAL PRIMARY KEY, "
                     "company TEXT, "
+                    "title TEXT, "
+                    "finished_code TEXT, "
+                    "finished_qty INTEGER, "
                     "status TEXT DEFAULT 'WAIT', "
                     "created_at TIMESTAMP DEFAULT NOW(), "
                     "due_date DATE"
@@ -65,6 +68,15 @@ def ensure_purchase_order_columns():
             )
             conn.execute(
                 text("ALTER TABLE purchase_order_batches ADD COLUMN IF NOT EXISTS due_date DATE")
+            )
+            conn.execute(
+                text("ALTER TABLE purchase_order_batches ADD COLUMN IF NOT EXISTS title TEXT")
+            )
+            conn.execute(
+                text("ALTER TABLE purchase_order_batches ADD COLUMN IF NOT EXISTS finished_code TEXT")
+            )
+            conn.execute(
+                text("ALTER TABLE purchase_order_batches ADD COLUMN IF NOT EXISTS finished_qty INTEGER")
             )
             conn.execute(
                 text("CREATE TABLE IF NOT EXISTS purchase_order_receipts (id SERIAL PRIMARY KEY, purchase_order_id INTEGER, quantity INTEGER, created_at TIMESTAMP DEFAULT NOW())")

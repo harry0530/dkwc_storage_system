@@ -20,8 +20,7 @@ const selectedCode = ref("");
 
 const quantity = ref("");
 
-const purchaseCompanyInput = ref("");
-const purchaseSelectedCompany = ref("");
+// 발주 등록에서 납품처 입력은 제거 (발주서의 발주처는 단품의 발주처 기준으로 자동 입력)
 const purchaseDueDate = ref(""); // YYYY-MM-DD
 const showPurchaseModal = ref(false);
 const purchaseRows = ref([]);
@@ -152,7 +151,6 @@ const loadAll = async () => {
 const closeAllDropdowns = () => {
   showCompanyDropdown.value = false;
   showCodeDropdown.value = false;
-  showPurchaseCompanyDropdown.value = false;
   editPurchaseDropdown.value = false;
   purchaseRowDropdown.value = {};
 };
@@ -223,13 +221,7 @@ const filteredCompanies = computed(() =>
   )
 );
 
-const showPurchaseCompanyDropdown = ref(false);
-
-const filteredPurchaseCompanies = computed(() =>
-  companies.value.filter(c =>
-    c.name.includes(purchaseCompanyInput.value)
-  )
-);
+// (구) 납품처 자동완성 드롭다운 제거
 
 const selectCompany = (name) => {
   selectedCompany.value = name.name || name;
@@ -243,11 +235,7 @@ const selectCompany = (name) => {
   updateProductName();
 };
 
-const selectPurchaseCompany = (name) => {
-  purchaseSelectedCompany.value = name.name || name;
-  purchaseCompanyInput.value = name.name || name;
-  showPurchaseCompanyDropdown.value = false;
-};
+// (구) 납품처 선택 제거
 
 // =====================
 // 품번 자동완성
@@ -659,7 +647,7 @@ const purchaseBatches = computed(() => {
       map.set(key, {
         key,
         batch_id: o.batch_id || o.id,
-        company: o.batch_company || o.company,
+        title: o.batch_title || "",
         created_at: o.batch_created_at || o.created_at,
         status: o.batch_status || o.status,
         items: []
@@ -672,21 +660,7 @@ const purchaseBatches = computed(() => {
 });
 
 const getPurchaseBatchTitle = (batch) => {
-  const items = Array.isArray(batch?.items) ? batch.items : [];
-  const finishedItem = items.find((o) => {
-    const code = o?.product_code || o?.productCode || "";
-    const resolved = resolveProduct(code);
-    const t = (resolved?.product?.type || "").toString().toUpperCase();
-    return t === "FINISHED";
-  });
-
-  if (finishedItem) {
-    const code = finishedItem?.product_code || finishedItem?.productCode || "";
-    const resolved = resolveProduct(code);
-    return finishedItem?.product_name || resolved?.product?.name || "완제품";
-  }
-
-  return "단품";
+  return (batch?.title || "").trim() || "단품";
 };
 
 

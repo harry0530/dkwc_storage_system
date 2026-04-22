@@ -334,6 +334,19 @@ def _get_bom_children(db: Session, parent_code: str):
     return db.query(models.BOM).filter(models.BOM.parent_code == parent_code).all()
 
 
+def _is_finished_product(db: Session, product: Optional[models.Product]) -> bool:
+    """
+    Treat as FINISHED when:
+    - product.type is explicitly "FINISHED", or
+    - BOM children exist (legacy safety: some rows may have missing/inconsistent type values).
+    """
+    if not product:
+        return False
+    if (product.type or "").strip().upper() == "FINISHED":
+        return True
+    return bool(_get_bom_children(db, product.new_code))
+
+
 def _get_company_name(db: Session, company_id: int | None) -> str:
     if not company_id:
         return ""
@@ -360,7 +373,7 @@ def _build_row(
 
     return {
         "code": old_code or new_code,
-        "drawing_number": drawing_number or new_code,
+        "drawing_number": drawing_number,
         "name": name,
         "spec": part_or_finished.spec if part_or_finished else "",
         "material": part_or_finished.material if part_or_finished else "",
@@ -382,12 +395,11 @@ def _expand_orders_for_template(db: Session, orders: list[models.PurchaseOrder])
         ).first()
 
         qty = int(order.quantity or 0)
-        product_type = (product.type or "").upper() if product else ""
         default_company = (order.company or "").strip()
         product_company = _get_company_name(db, product.supplier_company_id) if product else ""
         purchase_company = product_company or default_company
 
-        if product and product_type == "FINISHED":
+        if _is_finished_product(db, product):
             rows.append(
                 _build_row(
                     part_or_finished=product,
@@ -665,16 +677,47 @@ def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = 
             raise Exception("존재하지 않는 품번입니다")
 
         real_code = product.new_code
+        qty = int(item.quantity or 0)
+        if qty <= 0:
+            continue
 
-        db_order = models.PurchaseOrder(
-            batch_id=batch.id,
-            product_code=real_code,
-            quantity=item.quantity,
-            received_quantity=0,
-            company=company
-        )
-        db.add(db_order)
-        created.append(db_order)
+        if _is_finished_product(db, product):
+            # Store a batch title for the list UI and a meta row for Excel (finished qty column).
+            if not (batch.title or "").strip():
+                batch.title = (product.name or "").strip() or "완제품"
+            if not (batch.finished_code or "").strip():
+                batch.finished_code = real_code
+                batch.finished_qty = qty
+
+            boms = _get_bom_children(db, real_code)
+            if not boms:
+                raise Exception("완제품 BOM이 없어 단품 발주로 변환할 수 없습니다.")
+
+            for bom in boms:
+                child_code = (bom.child_code or "").strip()
+                child_qty = int(bom.quantity or 0) * qty
+                if not child_code or child_qty <= 0:
+                    continue
+
+                db_order = models.PurchaseOrder(
+                    batch_id=batch.id,
+                    product_code=child_code,
+                    quantity=child_qty,
+                    received_quantity=0,
+                    company=company
+                )
+                db.add(db_order)
+                created.append(db_order)
+        else:
+            db_order = models.PurchaseOrder(
+                batch_id=batch.id,
+                product_code=real_code,
+                quantity=qty,
+                received_quantity=0,
+                company=company
+            )
+            db.add(db_order)
+            created.append(db_order)
 
     db.commit()
     return {"batch_id": batch.id, "count": len(created)}
@@ -713,7 +756,24 @@ def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
     base_ws.title = "발주서"
     _write_purchase_dates(base_ws, created_at, due_at)
 
-    remaining = _render_items(base_ws, orders, db)
+    expanded_rows = _expand_orders_for_template(db, orders)
+
+    # If this batch came from a finished-product order, add a single summary row for Excel.
+    if (batch.finished_code or "").strip() and (batch.finished_qty or 0) > 0:
+        finished_product = db.query(models.Product).filter(
+            models.Product.new_code == batch.finished_code
+        ).first()
+        purchase_company = _get_company_name(db, finished_product.supplier_company_id) if finished_product else ""
+        summary = _build_row(
+            part_or_finished=finished_product,
+            fallback_code=batch.finished_code,
+            finished_qty=int(batch.finished_qty or 0),
+            part_qty=None,
+            purchase_company=purchase_company,
+        )
+        expanded_rows = [summary] + expanded_rows
+
+    remaining = _render_expanded_rows(base_ws, expanded_rows)
     page = 2
     while remaining:
         ws = wb.copy_worksheet(pristine)
@@ -875,6 +935,7 @@ def get_purchase_orders(db: Session = Depends(get_db)):
             "created_at": o.created_at,
             "batch_created_at": batch.created_at if batch else o.created_at,
             "batch_company": batch.company if batch else o.company,
+            "batch_title": batch.title if batch else "",
             "batch_status": batch.status if batch else o.status
         })
 

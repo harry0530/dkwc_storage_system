@@ -3,30 +3,30 @@
     <h2 class="text-xl font-bold mb-4">로그인</h2>
 
     <form @submit.prevent="handleLogin">
-      <div class="mb-3">
-        <label class="block text-sm font-medium mb-1">아이디(이메일)</label>
-        <input v-model="username" class="w-full border rounded px-3 py-2" placeholder="아이디(이메일)" />
-      </div>
+    <div class="mb-3">
+      <label class="block text-sm font-medium mb-1">아이디(이메일)</label>
+      <input v-model="username" class="w-full border rounded px-3 py-2" placeholder="아이디(이메일)" />
+    </div>
 
-      <div class="mb-4">
-        <label class="block text-sm font-medium mb-1">비밀번호</label>
-        <input v-model="password" type="password" class="w-full border rounded px-3 py-2" placeholder="비밀번호" />
-      </div>
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">비밀번호</label>
+      <input v-model="password" type="password" class="w-full border rounded px-3 py-2" placeholder="비밀번호" />
+    </div>
 
-      <p v-if="error" class="text-red-600 text-sm mb-3">{{ error }}</p>
+    <p v-if="error" class="text-red-600 text-sm mb-3">{{ error }}</p>
 
-      <div class="flex gap-2">
-        <button
-          type="submit"
-          class="bg-blue-600 text-white px-4 py-2 rounded font-medium"
-        >
-          로그인
-        </button>
-      </div>
+    <div class="flex gap-2">
+      <button
+        type="submit"
+        class="bg-blue-600 text-white px-4 py-2 rounded font-medium"
+      >
+        로그인
+      </button>
+    </div>
 
-      <p class="text-xs text-gray-500 mt-3">
-        계정 생성은 관리자에게 요청하세요.
-      </p>
+    <p class="text-xs text-gray-500 mt-3">
+      계정 생성은 관리자에게 요청하세요.
+    </p>
     </form>
   </div>
 </template>

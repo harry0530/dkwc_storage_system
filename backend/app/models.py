@@ -82,6 +82,9 @@ class PurchaseOrderBatch(Base):
 
     id = Column(Integer, primary_key=True)
     company = Column(String)
+    title = Column(String)
+    finished_code = Column(String)
+    finished_qty = Column(Integer)
     status = Column(String, default="WAIT")
     created_at = Column(DateTime, default=datetime.utcnow)
     due_date = Column(Date, nullable=True)
