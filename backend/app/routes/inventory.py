@@ -6,7 +6,7 @@ from app import models, schemas, crud
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
-# ???ш퀬 議고쉶 (JOIN 踰꾩쟾)
+# ✅ 재고 조회 (JOIN 버전)
 @router.get("/")
 def get_inventory(db: Session = Depends(get_db)):
     result = []
@@ -25,6 +25,9 @@ def get_inventory(db: Session = Depends(get_db)):
             "name": inv.name or "",
             "material": inv.material or "",
             "spec": inv.spec or "",
+            "heat_treatment": inv.heat_treatment or "",
+            "welding": inv.welding or "",
+            "plating": inv.plating or "",
             "type": inv.type,
             "location": inv.location or "",
             "quantity": inv.quantity,
@@ -35,13 +38,13 @@ def get_inventory(db: Session = Depends(get_db)):
     return result
 
 
-# ???ш퀬 ?낅젰 (蹂듦뎄??狩?
+# ✅ 재고 입력 (복구됨 ⭐)
 @router.post("/")
 def create_inventory(inv: schemas.InventoryCreate, db: Session = Depends(get_db)):
     return crud.create_inventory(db, inv)
 
 
-# ???ш퀬 ?섏젙 (?섎웾 吏곸젒 ?섏젙)
+# ✅ 재고 수정 (수량 직접 수정)
 @router.put("/{product_code}")
 def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db)):
     inv = db.query(models.Product).filter(
@@ -49,7 +52,7 @@ def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db
     ).first()
 
     if not inv:
-        raise HTTPException(status_code=404, detail="?ш퀬 ?놁쓬")
+        raise HTTPException(status_code=404, detail="재고 없음")
 
     if "quantity" in data:
         new_qty = data["quantity"]
@@ -58,7 +61,7 @@ def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db
 
         diff = new_qty - prev_qty
         if diff != 0:
-            reason = data.get("reason") or "?섎웾 蹂寃?"
+            reason = data.get("reason") or "수량 변경"
             tx_type = "IN" if diff > 0 else "OUT"
             db.add(models.Transaction(
                 product_code=inv.new_code,
@@ -69,10 +72,10 @@ def update_inventory(product_code: str, data: dict, db: Session = Depends(get_db
 
     db.commit()
 
-    return {"message": "?섏젙 ?꾨즺"}
+    return {"message": "수정 완료"}
 
 
-# ???ш퀬 ??젣 (紐⑸줉?먯꽌 ?쒓굅)
+# ✅ 재고 삭제 (목록에서 제거)
 @router.delete("/{product_code}")
 def delete_inventory(product_code: str, db: Session = Depends(get_db)):
     inv = db.query(models.Product).filter(
@@ -80,9 +83,9 @@ def delete_inventory(product_code: str, db: Session = Depends(get_db)):
     ).first()
 
     if not inv:
-        raise HTTPException(status_code=404, detail="?ш퀬 ?놁쓬")
+        raise HTTPException(status_code=404, detail="재고 없음")
 
     db.delete(inv)
     db.commit()
 
-    return {"message": "??젣 ?꾨즺"}
+    return {"message": "삭제 완료"}
