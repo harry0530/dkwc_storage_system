@@ -47,13 +47,24 @@ def ensure_purchase_order_columns():
     if db_url.startswith("postgresql"):
         with engine.begin() as conn:
             conn.execute(
-                text("CREATE TABLE IF NOT EXISTS purchase_order_batches (id SERIAL PRIMARY KEY, company TEXT, status TEXT DEFAULT 'WAIT', created_at TIMESTAMP DEFAULT NOW())")
+                text(
+                    "CREATE TABLE IF NOT EXISTS purchase_order_batches ("
+                    "id SERIAL PRIMARY KEY, "
+                    "company TEXT, "
+                    "status TEXT DEFAULT 'WAIT', "
+                    "created_at TIMESTAMP DEFAULT NOW(), "
+                    "due_date DATE"
+                    ")"
+                )
             )
             conn.execute(
                 text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS batch_id INTEGER")
             )
             conn.execute(
                 text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS received_quantity INTEGER DEFAULT 0")
+            )
+            conn.execute(
+                text("ALTER TABLE purchase_order_batches ADD COLUMN IF NOT EXISTS due_date DATE")
             )
             conn.execute(
                 text("CREATE TABLE IF NOT EXISTS purchase_order_receipts (id SERIAL PRIMARY KEY, purchase_order_id INTEGER, quantity INTEGER, created_at TIMESTAMP DEFAULT NOW())")

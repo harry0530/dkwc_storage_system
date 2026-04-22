@@ -59,6 +59,7 @@ class PurchaseOrderItemCreate(BaseModel):
 class PurchaseOrderBatchCreate(BaseModel):
     company: str
     items: list[PurchaseOrderItemCreate]
+    due_date: str | None = None  # YYYY-MM-DD
 
 
 class PurchaseOrderReceiptOut(BaseModel):

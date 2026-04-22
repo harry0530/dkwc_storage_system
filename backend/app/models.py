@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Date
 from datetime import datetime
 from app.database import Base
 
@@ -83,6 +84,7 @@ class PurchaseOrderBatch(Base):
     company = Column(String)
     status = Column(String, default="WAIT")
     created_at = Column(DateTime, default=datetime.utcnow)
+    due_date = Column(Date, nullable=True)
 
 
 class PurchaseOrderReceipt(Base):

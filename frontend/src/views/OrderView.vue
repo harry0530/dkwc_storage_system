@@ -22,6 +22,7 @@ const quantity = ref("");
 
 const purchaseCompanyInput = ref("");
 const purchaseSelectedCompany = ref("");
+const purchaseDueDate = ref(""); // YYYY-MM-DD
 const showPurchaseModal = ref(false);
 const purchaseRows = ref([]);
 const purchaseRowDropdown = ref({});
@@ -442,6 +443,7 @@ const createPurchaseOrders = async () => {
 
   const batchRes = await api.post("/purchase-orders/batch", {
     company: companyName,
+    due_date: (purchaseDueDate.value || "").trim() || null,
     items: payloads.map((payload) => ({
       product_code: payload.product_code,
       quantity: payload.quantity
@@ -468,6 +470,7 @@ const createPurchaseOrders = async () => {
 
   showPurchaseModal.value = false;
   initPurchaseRows();
+  purchaseDueDate.value = "";
   loadAll();
 };
 
@@ -1165,22 +1168,37 @@ const deletePurchaseOrder = async (id) => {
             </div>
           </div>
           <div class="p-4 flex flex-col gap-3 overflow-y-auto max-h-[75vh]">
-            <div class="relative w-64" @click.stop>
-              <input
-                v-model="purchaseCompanyInput"
-                @focus="showPurchaseCompanyDropdown = true"
-                @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
-                placeholder="납품처"
-                class="input w-full"
-              />
-              <div v-if="showPurchaseCompanyDropdown"
-                class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
-                <div v-for="c in filteredPurchaseCompanies"
-                  :key="c.id"
-                  @click="selectPurchaseCompany(c)"
-                  class="p-2 hover:bg-slate-100 cursor-pointer">
-                  {{ c.name }}
+            <div class="flex flex-wrap gap-3 items-start">
+              <div class="relative w-64" @click.stop>
+                <input
+                  v-model="purchaseCompanyInput"
+                  @focus="showPurchaseCompanyDropdown = true"
+                  @blur="setTimeout(() => showPurchaseCompanyDropdown = false, 200)"
+                  placeholder="납품처"
+                  class="input w-full"
+                />
+                <div v-if="showPurchaseCompanyDropdown"
+                  class="absolute bg-white border w-full z-50 max-h-40 overflow-y-auto rounded-lg shadow">
+                  <div v-for="c in filteredPurchaseCompanies"
+                    :key="c.id"
+                    @click="selectPurchaseCompany(c)"
+                    class="p-2 hover:bg-slate-100 cursor-pointer">
+                    {{ c.name }}
+                  </div>
                 </div>
+              </div>
+
+              <div class="w-48">
+                <input
+                  v-model="purchaseDueDate"
+                  type="date"
+                  class="input w-full"
+                  aria-label="납기일"
+                  title="납기일 (YYYY-MM-DD)"
+                />
+              </div>
+              <div class="text-xs text-slate-500 self-center">
+                납기일 (연-월-일)
               </div>
             </div>
 

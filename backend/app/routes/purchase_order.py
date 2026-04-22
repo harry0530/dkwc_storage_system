@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
-from datetime import datetime
+from datetime import datetime, date
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
@@ -298,11 +298,11 @@ def _find_first_cell(ws, text: str):
     return None
 
 
-def _write_purchase_dates(ws, order_date: datetime):
+def _write_purchase_dates(ws, order_date: datetime, due_date: date | None = None):
     # Template labels live on row 4: "발 주 일 :" at A4 and "납  기  일 :" at D4.
     # We write values to the immediate next cells (B4 and E4).
     ws["B4"].value = order_date.date().isoformat()
-    ws["E4"].value = order_date.date().isoformat()
+    ws["E4"].value = due_date.isoformat() if due_date else None
 
 
 def _clear_item_rows(ws, start_row: int, end_row: int):
@@ -607,7 +607,14 @@ def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = 
     if not data.items:
         raise Exception("발주 항목이 없습니다")
 
-    batch = models.PurchaseOrderBatch(company=company)
+    parsed_due: date | None = None
+    if data.due_date:
+        try:
+            parsed_due = date.fromisoformat(str(data.due_date).strip())
+        except Exception:
+            raise Exception("납기일 형식이 올바르지 않습니다. YYYY-MM-DD 형태로 입력해주세요.")
+
+    batch = models.PurchaseOrderBatch(company=company, due_date=parsed_due)
     db.add(batch)
     db.commit()
     db.refresh(batch)
@@ -663,18 +670,19 @@ def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
     pristine.sheet_state = "hidden"
 
     created_at = batch.created_at or datetime.utcnow()
+    due_at = batch.due_date
 
     # First page uses the original active sheet.
     base_ws = template_ws
     base_ws.title = "발주서"
-    _write_purchase_dates(base_ws, created_at)
+    _write_purchase_dates(base_ws, created_at, due_at)
 
     remaining = _render_items(base_ws, orders, db)
     page = 2
     while remaining:
         ws = wb.copy_worksheet(pristine)
         ws.title = f"발주서({page})"
-        _write_purchase_dates(ws, created_at)
+        _write_purchase_dates(ws, created_at, due_at)
         remaining = _render_expanded_rows(ws, remaining)
         page += 1
 
