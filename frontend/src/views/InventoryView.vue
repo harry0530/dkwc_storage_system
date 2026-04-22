@@ -47,6 +47,9 @@ const editDrawingNumber = ref("");
 const editNewCode = ref("");
 const editMaterial = ref("");
 const editSpec = ref("");
+const editHeatTreatment = ref("");
+const editWelding = ref("");
+const editPlating = ref("");
 const editLocation = ref("");
 const editMinStock = ref("");
 const editQuantity = ref("");
@@ -253,6 +256,9 @@ const startEdit = (item) => {
   editNewCode.value = item.new_code || item.code || "";
   editMaterial.value = item.material || "";
   editSpec.value = item.spec || "";
+  editHeatTreatment.value = item.heat_treatment || "";
+  editWelding.value = item.welding || "";
+  editPlating.value = item.plating || "";
   editLocation.value = item.location || "";
   editMinStock.value = String(item.min_stock ?? "");
   editQuantity.value = String(item.quantity ?? "");
@@ -271,6 +277,9 @@ const cancelEdit = () => {
   editNewCode.value = "";
   editMaterial.value = "";
   editSpec.value = "";
+  editHeatTreatment.value = "";
+  editWelding.value = "";
+  editPlating.value = "";
   editLocation.value = "";
   editMinStock.value = "";
   editQuantity.value = "";
@@ -288,6 +297,9 @@ const saveEdit = async () => {
     name: editName.value,
     material: editMaterial.value,
     spec: editSpec.value,
+    heat_treatment: editHeatTreatment.value,
+    welding: editWelding.value,
+    plating: editPlating.value,
     location: editLocation.value,
     min_stock: Number(editMinStock.value || 0),
     supplier_company_id: editSupplierCompanyId.value
@@ -566,13 +578,16 @@ const exportInventoryExcel = () => {
       (item) => (item.type || "PART").toString().toUpperCase() === "PART"
     )
     .map((item) => ({
-      기존품번: item.old_code || "",
+      구품번: item.old_code || "",
       신품번: item.new_code || item.code || "",
       도번: item.drawing_number || "",
       품명: item.name || "",
-      규격: item.spec || "",
       재질: item.material || "",
-      재고수량: Number(item.quantity || 0),
+      규격: item.spec || "",
+      열처리: item.heat_treatment || "",
+      용접: item.welding || "",
+      도금: item.plating || "",
+      현재재고: Number(item.quantity || 0),
       최소재고: Number(item.min_stock || 0),
       보관위치: item.location || "",
       납품처: getCompanyName(item.supplier_company_id)
@@ -1137,11 +1152,14 @@ const refreshUpload = async () => {
                 <th class="p-2">품명</th>
                 <th class="p-2">재질</th>
                 <th class="p-2">규격</th>
-                <th class="p-2">재고</th>
+                <th class="p-2">열처리</th>
+                <th class="p-2">용접</th>
+                <th class="p-2">도금</th>
+                <th class="p-2">현재재고</th>
                 <th class="p-2">최소재고</th>
                 <th class="p-2">보관위치</th>
                 <th class="p-2">납품처</th>
-                <th class="p-2">작업</th>
+                <th class="p-2">관리</th>
               </tr>
             </thead>
             <tbody>
@@ -1152,6 +1170,9 @@ const refreshUpload = async () => {
                 <td class="p-2">{{ item.name || "-" }}</td>
                 <td class="p-2">{{ item.material || "-" }}</td>
                 <td class="p-2">{{ item.spec || "-" }}</td>
+                <td class="p-2">{{ item.heat_treatment || "-" }}</td>
+                <td class="p-2">{{ item.welding || "-" }}</td>
+                <td class="p-2">{{ item.plating || "-" }}</td>
                 <td class="p-2">{{ item.quantity }}</td>
                 <td class="p-2">{{ item.min_stock }}</td>
                 <td class="p-2">{{ item.location || "-" }}</td>
@@ -1174,7 +1195,7 @@ const refreshUpload = async () => {
                 </td>
               </tr>
               <tr v-if="allPartsSorted.length === 0">
-                <td colspan="11" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
+                <td colspan="14" class="p-4 text-center text-gray-400">목록이 없습니다.</td>
               </tr>
             </tbody>
           </table>
@@ -1218,6 +1239,18 @@ const refreshUpload = async () => {
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>규격</span>
           <input v-model="editSpec" class="input w-28" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>열처리</span>
+          <input v-model="editHeatTreatment" class="input w-24" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>용접</span>
+          <input v-model="editWelding" class="input w-24" />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-600">
+          <span>도금</span>
+          <input v-model="editPlating" class="input w-24" />
         </label>
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>보관위치</span>
@@ -1293,8 +1326,14 @@ const refreshUpload = async () => {
             <th class="p-3">품명</th>
             <th class="p-3">재질</th>
             <th class="p-3">규격</th>
-            <th class="p-3">현재 재고</th>
-            <th class="p-3">작업</th>
+            <th class="p-3">열처리</th>
+            <th class="p-3">용접</th>
+            <th class="p-3">도금</th>
+            <th class="p-3">현재재고</th>
+            <th class="p-3">최소재고</th>
+            <th class="p-3">보관위치</th>
+            <th class="p-3">납품처</th>
+            <th class="p-3">관리</th>
           </tr>
         </thead>
 
@@ -1321,10 +1360,24 @@ const refreshUpload = async () => {
 
             <td class="p-3">{{ item.spec || "-" }}</td>
 
-            <td class="p-3 font-bold"
-                :class="item.quantity < item.min_stock ? 'text-red-500' : 'text-blue-600'">
+            <td class="p-3">{{ item.heat_treatment || "-" }}</td>
+
+            <td class="p-3">{{ item.welding || "-" }}</td>
+
+            <td class="p-3">{{ item.plating || "-" }}</td>
+
+            <td
+              class="p-3 font-bold"
+              :class="item.quantity < item.min_stock ? 'text-red-500' : 'text-blue-600'"
+            >
               {{ item.quantity }}
             </td>
+
+            <td class="p-3">{{ item.min_stock }}</td>
+
+            <td class="p-3">{{ item.location || "-" }}</td>
+
+            <td class="p-3">{{ getCompanyName(item.supplier_company_id) }}</td>
 
             <td class="p-3">
               <div class="flex gap-2">

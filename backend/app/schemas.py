@@ -11,6 +11,9 @@ class ProductCreate(BaseModel):
     drawing_number: str | None = ""
     material: str | None = ""
     spec: str | None = ""
+    heat_treatment: str | None = ""
+    welding: str | None = ""
+    plating: str | None = ""
     supplier_company_id: int | None = None
     quantity: int | None = 0
 

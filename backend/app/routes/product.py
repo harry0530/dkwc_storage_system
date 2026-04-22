@@ -16,6 +16,9 @@ PART_IMPORT_ALIASES = {
     "name": ["품명"],
     "material": ["재질"],
     "spec": ["규격"],
+    "heat_treatment": ["열처리"],
+    "welding": ["용접"],
+    "plating": ["도금"],
     "quantity": ["현재재고", "재고수량", "재고"],
     "min_stock": ["최소재고"],
     "location": ["보관위치"],
@@ -148,6 +151,9 @@ def _normalize_product_fields(
     name: str = "",
     material: str = "",
     spec: str = "",
+    heat_treatment: str = "",
+    welding: str = "",
+    plating: str = "",
     quantity: int = 0,
     location: str = "",
     min_stock: int = 0,
@@ -161,6 +167,9 @@ def _normalize_product_fields(
         "type": normalized_type,
         "material": (material or "").strip(),
         "spec": (spec or "").strip(),
+        "heat_treatment": (heat_treatment or "").strip(),
+        "welding": (welding or "").strip(),
+        "plating": (plating or "").strip(),
         "quantity": quantity or 0,
         "location": (location or "").strip(),
         "min_stock": min_stock or 0,
@@ -169,6 +178,9 @@ def _normalize_product_fields(
 
     if normalized_type == "FINISHED":
         normalized["material"] = ""
+        normalized["heat_treatment"] = ""
+        normalized["welding"] = ""
+        normalized["plating"] = ""
         normalized["quantity"] = 0
         normalized["location"] = ""
         normalized["min_stock"] = 0
@@ -196,6 +208,9 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         name=name,
         material=product.material,
         spec=product.spec,
+        heat_treatment=product.heat_treatment,
+        welding=product.welding,
+        plating=product.plating,
         quantity=product.quantity or 0,
         location=product.location,
         min_stock=product.min_stock,
@@ -210,6 +225,9 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         type=normalized["type"],
         material=normalized["material"],
         spec=normalized["spec"],
+        heat_treatment=normalized["heat_treatment"],
+        welding=normalized["welding"],
+        plating=normalized["plating"],
         quantity=normalized["quantity"],
         location=normalized["location"],
         min_stock=normalized["min_stock"],
@@ -287,6 +305,9 @@ def import_parts(
             "name": _normalize_excel_value(row[col["name"]]),
             "spec": _normalize_excel_value(row[col["spec"]]),
             "material": _normalize_excel_value(row[col["material"]]),
+            "heat_treatment": _normalize_excel_value(row[col["heat_treatment"]]) if "heat_treatment" in col else "",
+            "welding": _normalize_excel_value(row[col["welding"]]) if "welding" in col else "",
+            "plating": _normalize_excel_value(row[col["plating"]]) if "plating" in col else "",
             "quantity": _to_int(row[col["quantity"]]),
             "min_stock": _to_int(row[col["min_stock"]]),
             "location": _normalize_excel_value(row[col["location"]]),
@@ -350,6 +371,9 @@ def import_parts(
             product.type = "PART"
             product.material = parsed["material"]
             product.spec = parsed["spec"]
+            product.heat_treatment = parsed["heat_treatment"]
+            product.welding = parsed["welding"]
+            product.plating = parsed["plating"]
             product.quantity = parsed["quantity"]
             product.min_stock = parsed["min_stock"]
             product.location = parsed["location"]
@@ -364,6 +388,9 @@ def import_parts(
                 type="PART",
                 material=parsed["material"],
                 spec=parsed["spec"],
+                heat_treatment=parsed["heat_treatment"],
+                welding=parsed["welding"],
+                plating=parsed["plating"],
                 quantity=parsed["quantity"],
                 min_stock=parsed["min_stock"],
                 location=parsed["location"],
@@ -602,6 +629,9 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
         name=data.get("name", product.name),
         material=data.get("material", product.material),
         spec=data.get("spec", product.spec),
+        heat_treatment=data.get("heat_treatment", product.heat_treatment),
+        welding=data.get("welding", product.welding),
+        plating=data.get("plating", product.plating),
         quantity=data.get("quantity", product.quantity),
         location=data.get("location", product.location),
         min_stock=data.get("min_stock", product.min_stock),
@@ -616,6 +646,9 @@ def update_product(product_code: str, data: dict, db: Session = Depends(get_db))
     product.type = normalized["type"]
     product.material = normalized["material"]
     product.spec = normalized["spec"]
+    product.heat_treatment = normalized["heat_treatment"]
+    product.welding = normalized["welding"]
+    product.plating = normalized["plating"]
     product.location = normalized["location"]
     product.min_stock = normalized["min_stock"]
     product.quantity = normalized["quantity"]

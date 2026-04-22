@@ -77,6 +77,28 @@ def ensure_product_drawing_number_column():
             pass
 
 
+def ensure_product_process_columns():
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE products ADD COLUMN IF NOT EXISTS heat_treatment TEXT")
+            )
+            conn.execute(
+                text("ALTER TABLE products ADD COLUMN IF NOT EXISTS welding TEXT")
+            )
+            conn.execute(
+                text("ALTER TABLE products ADD COLUMN IF NOT EXISTS plating TEXT")
+            )
+    else:
+        for col_name in ["heat_treatment", "welding", "plating"]:
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE products ADD COLUMN {col_name} TEXT"))
+            except Exception:
+                pass
+
+
 if os.getenv("RESET_DB") == "1":
     db_url = str(engine.url)
     if db_url.startswith("postgresql"):
@@ -89,6 +111,7 @@ Base.metadata.create_all(bind=engine)
 ensure_company_email_column()
 ensure_purchase_order_columns()
 ensure_product_drawing_number_column()
+ensure_product_process_columns()
 
 protected = [Depends(verify_firebase_token)]
 
