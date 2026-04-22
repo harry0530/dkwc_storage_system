@@ -440,13 +440,37 @@ const createPurchaseOrders = async () => {
     return alert("입력된 발주 항목이 없습니다.");
   }
 
-  await api.post("/purchase-orders/batch", {
+  const batchRes = await api.post("/purchase-orders/batch", {
     company: companyName,
     items: payloads.map((payload) => ({
       product_code: payload.product_code,
       quantity: payload.quantity
     }))
   });
+
+  const batchId = batchRes?.data?.batch_id;
+  if (batchId) {
+    try {
+      const fileRes = await api.get(`/purchase-orders/batch/${batchId}/xlsx`, {
+        responseType: "blob"
+      });
+      const blob = new Blob([fileRes.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const disposition = fileRes?.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      a.download = match?.[1] || `발주서_${batchId}.xlsx`;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("발주서는 등록됐는데, 엑셀 다운로드에 실패했습니다.");
+    }
+  }
 
   showPurchaseModal.value = false;
   initPurchaseRows();

@@ -1,10 +1,76 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+
+import openpyxl
 
 router = APIRouter(prefix="/purchase-orders", tags=["PurchaseOrders"])
+
+TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "purchase_order_template.xlsx"
+
+
+def _find_first_cell(ws, text: str):
+    for row in ws.iter_rows():
+        for cell in row:
+            if (cell.value or "") == text:
+                return cell
+    return None
+
+
+def _write_purchase_dates(ws, order_date: datetime):
+    # Template labels live on row 4: "발 주 일 :" at A4 and "납  기  일 :" at D4.
+    # We write values to the immediate next cells (B4 and E4).
+    ws["B4"].value = order_date.date().isoformat()
+    ws["E4"].value = order_date.date().isoformat()
+
+
+def _clear_item_rows(ws, start_row: int, end_row: int):
+    for r in range(start_row, end_row + 1):
+        for c in range(1, 12):  # A..K
+            ws.cell(r, c).value = None
+
+
+def _render_items(ws, orders: list[models.PurchaseOrder], db: Session):
+    # Template header row is 5, items start at 6.
+    start_row = 6
+
+    # Find footer row ("※ 비고 : ") to know how many lines are available.
+    footer_cell = _find_first_cell(ws, "※ 비고 : ")
+    footer_row = footer_cell.row if footer_cell else (start_row + 28)
+    last_item_row = max(start_row, footer_row - 2)
+    capacity = last_item_row - start_row + 1
+
+    _clear_item_rows(ws, start_row, last_item_row)
+
+    for idx, order in enumerate(orders[:capacity]):
+        row = start_row + idx
+        product = db.query(models.Product).filter(
+            models.Product.new_code == order.product_code
+        ).first()
+
+        old_code = product.old_code if product and product.old_code else ""
+        new_code = product.new_code if product else order.product_code
+        drawing_number = (product.drawing_number or "").strip() if product else ""
+
+        ws.cell(row, 1).value = old_code or new_code  # 품번
+        ws.cell(row, 2).value = drawing_number or new_code  # 도번(템플릿 표기)
+        ws.cell(row, 3).value = product.name if product else ""  # 품명
+        ws.cell(row, 4).value = product.spec if product else ""  # 규격
+        ws.cell(row, 5).value = product.material if product else ""  # 재질
+        ws.cell(row, 6).value = ""  # 완제품수량 (미사용)
+        ws.cell(row, 7).value = order.quantity  # 단품 수량
+        ws.cell(row, 8).value = product.heat_treatment if product else ""  # 열처리
+        ws.cell(row, 9).value = product.welding if product else ""  # 용접
+        ws.cell(row, 10).value = product.plating if product else ""  # 도금
+        ws.cell(row, 11).value = ""  # 비고
+
+    remaining = orders[capacity:]
+    return remaining
 
 def resolve_product(db: Session, input_code: str):
     product = db.query(models.Product).filter(
@@ -212,6 +278,55 @@ def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = 
 
     db.commit()
     return {"batch_id": batch.id, "count": len(created)}
+
+
+@router.get("/batch/{batch_id}/xlsx")
+def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
+    batch = db.query(models.PurchaseOrderBatch).filter(
+        models.PurchaseOrderBatch.id == batch_id
+    ).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="발주 배치 없음")
+
+    orders = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.batch_id == batch_id
+    ).all()
+    if not orders:
+        raise HTTPException(status_code=404, detail="발주 항목 없음")
+
+    if not TEMPLATE_PATH.exists():
+        raise HTTPException(status_code=500, detail="발주서 템플릿 파일이 없습니다")
+
+    # Paginate if orders exceed one template page.
+    wb = openpyxl.load_workbook(TEMPLATE_PATH)
+    base_ws = wb.active
+    base_ws.title = "발주서"
+
+    created_at = batch.created_at or datetime.utcnow()
+    _write_purchase_dates(base_ws, created_at)
+
+    remaining = _render_items(base_ws, orders, db)
+    page = 2
+    while remaining:
+        ws = wb.copy_worksheet(base_ws)
+        ws.title = f"발주서({page})"
+        _write_purchase_dates(ws, created_at)
+        remaining = _render_items(ws, remaining, db)
+        page += 1
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"발주서_{batch_id}.xlsx"
+    headers = {
+        "Content-Disposition": f'attachment; filename=\"{filename}\"'
+    }
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @router.put("/{order_id}")
