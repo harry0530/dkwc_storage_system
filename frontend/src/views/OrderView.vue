@@ -450,25 +450,52 @@ const createPurchaseOrders = async () => {
 
   const batchId = batchRes?.data?.batch_id;
   if (batchId) {
-    try {
+    const downloadPurchaseBatchXlsx = async () => {
       const fileRes = await api.get(`/purchase-orders/batch/${batchId}/xlsx`, {
         responseType: "blob"
       });
-      const blob = new Blob([fileRes.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      });
+
+      const blob = fileRes.data instanceof Blob
+        ? fileRes.data
+        : new Blob([fileRes.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+
+      const contentType = String(fileRes?.headers?.["content-type"] || blob.type || "");
+      if (contentType.includes("application/json")) {
+        const text = await blob.text();
+        throw new Error(text || "download_failed");
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       const disposition = fileRes?.headers?.["content-disposition"] || "";
-      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-      a.download = match?.[1] || `발주서_${batchId}.xlsx`;
+      const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+      const filename = match?.[1]
+        ? decodeURIComponent(match[1])
+        : (match?.[2] || `purchase_order_${batchId}.xlsx`);
+      a.download = filename;
       a.href = url;
+      a.style.display = "none";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1500);
+    };
+
+    try {
+      await downloadPurchaseBatchXlsx();
     } catch (err) {
-      alert("발주서는 등록됐는데, 엑셀 다운로드에 실패했습니다.");
+      const retry = window.confirm(
+        "발주 등록은 됐는데, 브라우저에서 자동 다운로드가 막힌 것 같습니다.\n지금 다운로드를 다시 시도할까요?"
+      );
+      if (retry) {
+        try {
+          await downloadPurchaseBatchXlsx();
+        } catch (err2) {
+          alert("엑셀 다운로드에 실패했습니다. (네트워크/권한/팝업 설정 확인)");
+        }
+      }
     }
   }
 

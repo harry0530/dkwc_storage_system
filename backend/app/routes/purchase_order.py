@@ -6,6 +6,7 @@ from app import models, schemas
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 import openpyxl
 
@@ -318,9 +319,14 @@ def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
     wb.save(output)
     output.seek(0)
 
-    filename = f"발주서_{batch_id}.xlsx"
+    # Prefer ASCII filename for broad browser compatibility; keep UTF-8 variant too.
+    filename_ascii = f"purchase_order_{batch_id}.xlsx"
+    filename_utf8 = f"발주서_{batch_id}.xlsx"
     headers = {
-        "Content-Disposition": f'attachment; filename=\"{filename}\"'
+        "Content-Disposition": (
+            f'attachment; filename=\"{filename_ascii}\"; '
+            f"filename*=UTF-8''{quote(filename_utf8)}"
+        )
     }
     return StreamingResponse(
         output,
