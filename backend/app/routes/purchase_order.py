@@ -10,10 +10,199 @@ from urllib.parse import quote
 from typing import Optional
 
 import openpyxl
+import zipfile
+import xml.etree.ElementTree as ET
 
 router = APIRouter(prefix="/purchase-orders", tags=["PurchaseOrders"])
 
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "purchase_order_template.xlsx"
+
+REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+def _pick_free_rid(existing: set[str], start: int = 2) -> str:
+    i = start
+    while True:
+        rid = f"rId{i}"
+        if rid not in existing:
+            return rid
+        i += 1
+
+
+def _merge_content_types(*, out_xml: bytes, template_xml: bytes) -> bytes:
+    # openpyxl drops drawings/media parts, which also removes Content_Types entries.
+    # We merge template entries back so Office can load the embedded images/VML.
+    ET.register_namespace("", "http://schemas.openxmlformats.org/package/2006/content-types")
+    out_root = ET.fromstring(out_xml)
+    tmpl_root = ET.fromstring(template_xml)
+
+    def _key(elem):
+        tag = elem.tag.rsplit("}", 1)[-1]
+        if tag == "Default":
+            return ("Default", elem.get("Extension"))
+        if tag == "Override":
+            return ("Override", elem.get("PartName"))
+        return (tag, None)
+
+    existing = {_key(e) for e in out_root}
+    for e in tmpl_root:
+        k = _key(e)
+        if k in existing:
+            continue
+        out_root.append(e)
+        existing.add(k)
+
+    return ET.tostring(out_root, encoding="utf-8", xml_declaration=True)
+
+
+def _ensure_sheet_has_drawings(*, sheet_xml: bytes, drawing_rid: str, vml_rid: str, vmlhf_rid: str) -> bytes:
+    text = sheet_xml.decode("utf-8")
+    if "<drawing" in text or "<legacyDrawing" in text:
+        return sheet_xml
+
+    # openpyxl-generated sheets always have relationships (tables), but be defensive.
+    if "xmlns:r=" not in text:
+        text = text.replace(
+            "<worksheet ",
+            f'<worksheet xmlns:r="{R_NS}" ',
+            1,
+        )
+
+    inject = (
+        f'<drawing r:id="{drawing_rid}"/>'
+        f'<legacyDrawing r:id="{vml_rid}"/>'
+        f'<legacyDrawingHF r:id="{vmlhf_rid}"/>'
+    )
+
+    idx = text.rfind("<tableParts")
+    if idx != -1:
+        text = text[:idx] + inject + text[idx:]
+        return text.encode("utf-8")
+
+    idx = text.rfind("</worksheet>")
+    if idx == -1:
+        return sheet_xml
+    text = text[:idx] + inject + text[idx:]
+    return text.encode("utf-8")
+
+
+def _ensure_sheet_rels_has_drawings(*, rels_xml: bytes) -> tuple[bytes, dict[str, str]]:
+    """
+    Ensures a sheet rels file contains relationships to:
+      - drawing1.xml
+      - vmlDrawing1.vml
+      - vmlDrawing2.vml
+    Returns (updated_xml, rId_map).
+    """
+    ET.register_namespace("", REL_NS)
+    root = ET.fromstring(rels_xml)
+
+    existing_ids = set()
+    existing_pairs = set()
+    for rel in root.findall(f"{{{REL_NS}}}Relationship"):
+        existing_ids.add(rel.get("Id"))
+        existing_pairs.add((rel.get("Type"), rel.get("Target")))
+
+    def _ensure(type_: str, target: str) -> str:
+        pair = (type_, target)
+        if pair in existing_pairs:
+            # Reuse the existing Id for this target/type.
+            for rel in root.findall(f"{{{REL_NS}}}Relationship"):
+                if rel.get("Type") == type_ and rel.get("Target") == target:
+                    return rel.get("Id")
+
+        rid = _pick_free_rid(existing_ids, start=2)
+        ET.SubElement(
+            root,
+            f"{{{REL_NS}}}Relationship",
+            Id=rid,
+            Type=type_,
+            Target=target,
+        )
+        existing_ids.add(rid)
+        existing_pairs.add(pair)
+        return rid
+
+    rid_drawing = _ensure(
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing",
+        "../drawings/drawing1.xml",
+    )
+    rid_vml = _ensure(
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
+        "../drawings/vmlDrawing1.vml",
+    )
+    rid_vmlhf = _ensure(
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
+        "../drawings/vmlDrawing2.vml",
+    )
+
+    return (
+        ET.tostring(root, encoding="utf-8", xml_declaration=True),
+        {"drawing": rid_drawing, "vml": rid_vml, "vmlhf": rid_vmlhf},
+    )
+
+
+def _restore_template_drawings(*, xlsx_bytes: bytes, template_path: Path) -> bytes:
+    """
+    openpyxl cannot preserve existing drawings/images/VML from a template workbook.
+    We post-process the generated xlsx (zip) to merge the template drawing parts back in.
+    """
+    template_bytes = template_path.read_bytes()
+
+    out_buf = BytesIO()
+    with zipfile.ZipFile(BytesIO(xlsx_bytes), "r") as out_zip, zipfile.ZipFile(
+        BytesIO(template_bytes), "r"
+    ) as tmpl_zip, zipfile.ZipFile(out_buf, "w", compression=zipfile.ZIP_DEFLATED) as new_zip:
+        out_names = set(out_zip.namelist())
+
+        # Precompute relationship IDs per sheet so we can inject matching r:ids into sheet XML.
+        sheet_rid_map: dict[str, dict[str, str]] = {}
+        for name in out_names:
+            if not (name.startswith("xl/worksheets/_rels/sheet") and name.endswith(".xml.rels")):
+                continue
+            updated_rels, rid_map = _ensure_sheet_rels_has_drawings(rels_xml=out_zip.read(name))
+            sheet_xml_name = name.replace("xl/worksheets/_rels/", "xl/worksheets/").replace(".rels", "")
+            sheet_rid_map[sheet_xml_name] = rid_map
+            new_zip.writestr(name, updated_rels)
+
+        # Copy everything else, patching sheet XML and Content_Types as needed.
+        for info in out_zip.infolist():
+            name = info.filename
+            if name in new_zip.namelist():
+                continue
+
+            data = out_zip.read(name)
+
+            if name == "[Content_Types].xml":
+                data = _merge_content_types(out_xml=data, template_xml=tmpl_zip.read(name))
+
+            if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"):
+                rid_map = sheet_rid_map.get(name)
+                if rid_map:
+                    data = _ensure_sheet_has_drawings(
+                        sheet_xml=data,
+                        drawing_rid=rid_map["drawing"],
+                        vml_rid=rid_map["vml"],
+                        vmlhf_rid=rid_map["vmlhf"],
+                    )
+
+            new_zip.writestr(info, data)
+
+        # Copy the template drawing/media parts (and printer settings) into the output if missing.
+        for name in tmpl_zip.namelist():
+            if not (
+                name.startswith("xl/drawings/")
+                or name.startswith("xl/media/")
+                or name.startswith("xl/printerSettings/")
+            ):
+                continue
+            if name in out_names:
+                continue
+            new_zip.writestr(name, tmpl_zip.read(name))
+
+    out_buf.seek(0)
+    return out_buf.getvalue()
 
 
 def _find_first_cell(ws, text: str):
@@ -410,6 +599,15 @@ def export_purchase_batch_xlsx(batch_id: int, db: Session = Depends(get_db)):
     output = BytesIO()
     wb.save(output)
     output.seek(0)
+
+    # openpyxl drops template drawings (approval box / logo). Restore them from the original template zip.
+    try:
+        restored = _restore_template_drawings(xlsx_bytes=output.getvalue(), template_path=TEMPLATE_PATH)
+        output = BytesIO(restored)
+        output.seek(0)
+    except Exception:
+        # If restoration fails, still return a usable spreadsheet (without images).
+        output.seek(0)
 
     # Prefer ASCII filename for broad browser compatibility; keep UTF-8 variant too.
     filename_ascii = f"purchase_order_{batch_id}.xlsx"

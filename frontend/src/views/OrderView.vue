@@ -450,48 +450,15 @@ const createPurchaseOrders = async () => {
 
   const batchId = batchRes?.data?.batch_id;
   if (batchId) {
-    const downloadPurchaseBatchXlsx = async () => {
-      const fileRes = await api.get(`/purchase-orders/batch/${batchId}/xlsx`, {
-        responseType: "blob"
-      });
-
-      const blob = fileRes.data instanceof Blob
-        ? fileRes.data
-        : new Blob([fileRes.data], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        });
-
-      const contentType = String(fileRes?.headers?.["content-type"] || blob.type || "");
-      if (contentType.includes("application/json")) {
-        const text = await blob.text();
-        throw new Error(text || "download_failed");
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const disposition = fileRes?.headers?.["content-disposition"] || "";
-      const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
-      const filename = match?.[1]
-        ? decodeURIComponent(match[1])
-        : (match?.[2] || `purchase_order_${batchId}.xlsx`);
-      a.download = filename;
-      a.href = url;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(url), 1500);
-    };
-
     try {
-      await downloadPurchaseBatchXlsx();
+      await downloadPurchaseBatchXlsx(batchId);
     } catch (err) {
       const retry = window.confirm(
         "발주 등록은 됐는데, 브라우저에서 자동 다운로드가 막힌 것 같습니다.\n지금 다운로드를 다시 시도할까요?"
       );
       if (retry) {
         try {
-          await downloadPurchaseBatchXlsx();
+          await downloadPurchaseBatchXlsx(batchId);
         } catch (err2) {
           alert("엑셀 다운로드에 실패했습니다. (네트워크/권한/팝업 설정 확인)");
         }
@@ -502,6 +469,50 @@ const createPurchaseOrders = async () => {
   showPurchaseModal.value = false;
   initPurchaseRows();
   loadAll();
+};
+
+const downloadPurchaseBatchXlsx = async (batchId) => {
+  if (!batchId) throw new Error("missing_batch_id");
+
+  const fileRes = await api.get(`/purchase-orders/batch/${batchId}/xlsx`, {
+    responseType: "blob"
+  });
+
+  const blob = fileRes.data instanceof Blob
+    ? fileRes.data
+    : new Blob([fileRes.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+  const contentType = String(fileRes?.headers?.["content-type"] || blob.type || "");
+  if (contentType.includes("application/json")) {
+    const text = await blob.text();
+    throw new Error(text || "download_failed");
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const disposition = fileRes?.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+  const filename = match?.[1]
+    ? decodeURIComponent(match[1])
+    : (match?.[2] || `purchase_order_${batchId}.xlsx`);
+
+  a.download = filename;
+  a.href = url;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1500);
+};
+
+const onClickDownloadPurchaseBatchXlsx = async (batchId) => {
+  try {
+    await downloadPurchaseBatchXlsx(batchId);
+  } catch (err) {
+    alert("엑셀 다운로드에 실패했습니다. (네트워크/권한/팝업 설정 확인)");
+  }
 };
 
 const buildQuoteBody = () => {
@@ -1018,9 +1029,17 @@ const deletePurchaseOrder = async (id) => {
                       {{ purchaseBatchIdMap.get(batchKey(batch)) || "-" }} · {{ batch.company }} ·
                       <span class="text-slate-500">발주시간 {{ formatOrderDate(batch.created_at) }}</span>
                     </div>
-                    <button class="btn btn-secondary h-8 px-2 text-xs" @click="toggleBatch(batch)">
-                      {{ showBatch[batchKey(batch)] ? "접기" : "자세히보기" }}
-                    </button>
+                    <div class="flex items-center gap-2">
+                      <button
+                        class="btn btn-primary h-8 px-2 text-xs"
+                        @click="onClickDownloadPurchaseBatchXlsx(batch.batch_id)"
+                      >
+                        엑셀 저장
+                      </button>
+                      <button class="btn btn-secondary h-8 px-2 text-xs" @click="toggleBatch(batch)">
+                        {{ showBatch[batchKey(batch)] ? "접기" : "자세히보기" }}
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
