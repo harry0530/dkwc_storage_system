@@ -805,6 +805,8 @@ const uploadPartsExcel = async () => {
   }
   await loadInventory();
   await loadProducts();
+  // 업로드 중 발주처(Company)가 새로 생성될 수 있으니 목록을 갱신한다.
+  await loadCompanies();
   const created = Number(res?.data?.created || 0);
   const updated = Number(res?.data?.updated || 0);
   const skipped = Number(res?.data?.skipped || 0);
@@ -827,6 +829,7 @@ const refreshUpload = async () => {
   }
   await loadInventory();
   await loadProducts();
+  await loadCompanies();
 };
 </script>
 
