@@ -807,6 +807,21 @@ const deletePurchaseOrder = async (id) => {
     alert("삭제 실패");
   }
 };
+
+const deletePurchaseBatch = async (batchId) => {
+  if (!batchId) return;
+  const ok = window.confirm(
+    "이 발주서(배치)를 통째로 삭제할까요?\n(하위 발주 항목/입고 기록도 함께 삭제됩니다)"
+  );
+  if (!ok) return;
+
+  try {
+    await api.delete(`/purchase-orders/batch/${batchId}`);
+    await loadAll();
+  } catch (err) {
+    alert("발주서 삭제 실패");
+  }
+};
 </script>
 
 <template>
@@ -1038,6 +1053,12 @@ const deletePurchaseOrder = async (id) => {
                         @click="onClickDownloadPurchaseBatchXlsx(batch.batch_id)"
                       >
                         엑셀 저장
+                      </button>
+                      <button
+                        class="btn btn-secondary h-8 px-2 text-xs"
+                        @click="deletePurchaseBatch(batch.batch_id)"
+                      >
+                        삭제
                       </button>
                       <button class="btn btn-secondary h-8 px-2 text-xs" @click="toggleBatch(batch)">
                         {{ showBatch[batchKey(batch)] ? "접기" : "자세히보기" }}

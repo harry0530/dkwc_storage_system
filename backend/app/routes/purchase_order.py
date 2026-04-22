@@ -1013,3 +1013,57 @@ def delete_purchase(order_id: int, db: Session = Depends(get_db)):
     update_batch_status(db, batch_id)
 
     return {"message": "삭제 완료"}
+
+
+@router.delete("/batch/{batch_id}")
+def delete_purchase_batch(batch_id: int, db: Session = Depends(get_db)):
+    batch = db.query(models.PurchaseOrderBatch).filter(
+        models.PurchaseOrderBatch.id == batch_id
+    ).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="발주 배치 없음")
+
+    orders = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.batch_id == batch_id
+    ).all()
+
+    deleted_orders = 0
+    deleted_receipts = 0
+
+    for order in orders:
+        receipts = db.query(models.PurchaseOrderReceipt).filter(
+            models.PurchaseOrderReceipt.purchase_order_id == order.id
+        ).all()
+
+        if receipts:
+            total = sum((r.quantity or 0) for r in receipts)
+            if total:
+                product = db.query(models.Product).filter(
+                    models.Product.new_code == order.product_code
+                ).first()
+                if product:
+                    product.quantity = (product.quantity or 0) - total
+
+                db.add(models.Transaction(
+                    product_code=order.product_code,
+                    quantity=total,
+                    type="OUT",
+                    reason="PURCHASE_BATCH_DELETE"
+                ))
+
+            for r in receipts:
+                db.delete(r)
+                deleted_receipts += 1
+
+        db.delete(order)
+        deleted_orders += 1
+
+    db.delete(batch)
+    db.commit()
+
+    return {
+        "message": "삭제 완료",
+        "batch_id": batch_id,
+        "deleted_orders": deleted_orders,
+        "deleted_receipts": deleted_receipts,
+    }
