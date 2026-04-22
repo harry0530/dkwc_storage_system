@@ -87,10 +87,12 @@ def _ensure_sheet_has_drawings(*, sheet_xml: bytes, drawing_rid: str, vml_rid: s
             1,
         )
 
+    # Some generators may omit xmlns:r even though we inject r:id. Declare it locally to avoid Excel repair:
+    # "undeclared prefix" at /xl/worksheets/sheet*.xml.
     inject = (
-        f'<drawing r:id="{drawing_rid}"/>'
-        f'<legacyDrawing r:id="{vml_rid}"/>'
-        f'<legacyDrawingHF r:id="{vmlhf_rid}"/>'
+        f'<drawing xmlns:r="{R_NS}" r:id="{drawing_rid}"/>'
+        f'<legacyDrawing xmlns:r="{R_NS}" r:id="{vml_rid}"/>'
+        f'<legacyDrawingHF xmlns:r="{R_NS}" r:id="{vmlhf_rid}"/>'
     )
 
     idx = text.rfind("<tableParts")
