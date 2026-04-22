@@ -1137,12 +1137,12 @@ const refreshUpload = async () => {
     <!-- 전체 단품 모달 -->
     <div v-if="showAllPartsModal" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40" @click="showAllPartsModal = false"></div>
-      <div class="relative bg-white w-[90vw] max-w-5xl max-h-[80vh] rounded-2xl shadow-xl overflow-hidden">
+      <div class="relative bg-white w-[95vw] max-w-7xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b">
           <div class="font-semibold">전체 단품 정보 ({{ allPartsSorted.length }})</div>
           <button class="btn btn-secondary" @click="showAllPartsModal = false">닫기</button>
         </div>
-        <div class="p-3 overflow-auto max-h-[70vh]">
+        <div class="p-3 overflow-auto max-h-[75vh]">
           <table class="w-full text-left">
             <thead class="table-head">
               <tr>
