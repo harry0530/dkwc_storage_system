@@ -290,6 +290,11 @@ def _restore_template_drawings(*, xlsx_bytes: bytes, template_path: Path) -> byt
     return out_buf.getvalue()
 
 
+def _normalize_label(value: str) -> str:
+    # Normalize labels like "발  주  일  :" -> "발주일:" for robust matching across templates.
+    return "".join(str(value or "").split())
+
+
 def _find_first_cell(ws, text: str):
     for row in ws.iter_rows():
         for cell in row:
@@ -298,11 +303,25 @@ def _find_first_cell(ws, text: str):
     return None
 
 
+def _find_cell_by_normalized(ws, normalized_text: str):
+    for row in ws.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and _normalize_label(cell.value) == normalized_text:
+                return cell
+    return None
+
+
 def _write_purchase_dates(ws, order_date: datetime, due_date: date | None = None):
     # Template labels live on row 4: "발 주 일 :" at A4 and "납  기  일 :" at D4.
     # We write values to the immediate next cells (B4 and E4).
-    ws["B4"].value = order_date.date().isoformat()
-    ws["E4"].value = due_date.isoformat() if due_date else None
+    order_label = _find_cell_by_normalized(ws, "발주일:")
+    due_label = _find_cell_by_normalized(ws, "납기일:")
+
+    order_cell = ws.cell(row=order_label.row, column=order_label.column + 1) if order_label else ws["B3"]
+    due_cell = ws.cell(row=due_label.row, column=due_label.column + 1) if due_label else ws["B4"]
+
+    order_cell.value = order_date.date().isoformat()
+    due_cell.value = due_date.isoformat() if due_date else None
 
 
 def _clear_item_rows(ws, start_row: int, end_row: int):
