@@ -25,11 +25,7 @@ const editFax = ref("");
 const editAddress = ref("");
 
 // 직원 입력
-const empDepartment = ref("");
-const empName = ref("");
-const empTitle = ref("");
-const empPhone = ref("");
-const empEmail = ref("");
+const employeeDraftByCompany = ref({});
 
 // 직원 수정
 const editingEmployeeId = ref("");
@@ -42,6 +38,17 @@ const editEmpEmail = ref("");
 const loadCompanies = async () => {
   const res = await api.get("/companies/");
   companies.value = res.data;
+
+  // Ensure per-company employee drafts exist so v-model bindings are stable.
+  const next = { ...(employeeDraftByCompany.value || {}) };
+  for (const c of companies.value || []) {
+    const key = String(c?.id ?? "");
+    if (!key) continue;
+    if (!next[key]) {
+      next[key] = { department: "", name: "", title: "", phone: "", email: "" };
+    }
+  }
+  employeeDraftByCompany.value = next;
 };
 
 const loadAllEmployees = async () => {
@@ -192,19 +199,29 @@ const toggleEmployees = async (companyId) => {
 };
 
 const addEmployee = async (companyId) => {
-  if (!empName.value.trim()) return;
+  const key = String(companyId);
+  const draft = employeeDraftByCompany.value?.[key] || {
+    department: "",
+    name: "",
+    title: "",
+    phone: "",
+    email: ""
+  };
+
+  if (!String(draft.name || "").trim()) return;
   await api.post(`/companies/${companyId}/employees`, {
-    department: empDepartment.value,
-    name: empName.value,
-    title: empTitle.value,
-    phone: empPhone.value,
-    email: empEmail.value
+    department: draft.department,
+    name: draft.name,
+    title: draft.title,
+    phone: draft.phone,
+    email: draft.email
   });
-  empDepartment.value = "";
-  empName.value = "";
-  empTitle.value = "";
-  empPhone.value = "";
-  empEmail.value = "";
+
+  employeeDraftByCompany.value = {
+    ...(employeeDraftByCompany.value || {}),
+    [key]: { department: "", name: "", title: "", phone: "", email: "" }
+  };
+
   await loadEmployees(String(companyId));
   await loadAllEmployees();
 };
@@ -285,7 +302,7 @@ onMounted(async () => {
       <div class="p-3 border-b bg-slate-50">
         <input
           v-model="companySearch"
-          placeholder="회사명/이메일/전화번호/팩스/주소 검색"
+          placeholder="회사명/이메일/전화번호/팩스/주소/직원이름 검색"
           class="input w-72"
         />
       </div>
@@ -346,7 +363,7 @@ onMounted(async () => {
               <td class="p-3">{{ c.fax }}</td>
               <td class="p-3">{{ c.address }}</td>
               <td class="p-3">
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2 items-center" @click.stop>
                   <button @click="startEditCompany(c)"
                     class="btn btn-info h-8 px-2 text-xs">
                     수정
@@ -355,6 +372,41 @@ onMounted(async () => {
                     class="btn btn-danger h-8 px-2 text-xs">
                     삭제
                   </button>
+
+                  <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+                  <input
+                    v-model="employeeDraftByCompany[String(c.id)].name"
+                    placeholder="직원이름"
+                    class="input h-8 w-28"
+                  />
+                  <input
+                    v-model="employeeDraftByCompany[String(c.id)].department"
+                    placeholder="부서"
+                    class="input h-8 w-24"
+                  />
+                  <input
+                    v-model="employeeDraftByCompany[String(c.id)].title"
+                    placeholder="직급"
+                    class="input h-8 w-24"
+                  />
+                  <input
+                    v-model="employeeDraftByCompany[String(c.id)].phone"
+                    placeholder="전화"
+                    class="input h-8 w-32"
+                  />
+                  <input
+                    v-model="employeeDraftByCompany[String(c.id)].email"
+                    placeholder="이메일"
+                    class="input h-8 w-44"
+                  />
+                  <button
+                    @click="addEmployee(c.id)"
+                    class="btn btn-primary h-8 px-2 text-xs"
+                    title="직원 추가"
+                  >
+                    직원추가
+                  </button>
                 </div>
               </td>
             </template>
@@ -362,20 +414,8 @@ onMounted(async () => {
             </tr>
             <tr v-if="expandedCompanyId === String(c.id)" class="border-t bg-slate-50/70">
               <td colspan="6" class="p-3">
-                <div class="flex items-center gap-2 flex-wrap mb-3">
-                  <input v-model="empDepartment" placeholder="부서"
-                    class="input w-32" />
-                  <input v-model="empName" placeholder="이름"
-                    class="input w-32" />
-                  <input v-model="empTitle" placeholder="직급"
-                    class="input w-32" />
-                  <input v-model="empPhone" placeholder="전화번호"
-                    class="input w-40" />
-                  <input v-model="empEmail" placeholder="이메일"
-                    class="input w-56" />
-                  <button @click="addEmployee(c.id)" class="btn btn-primary">
-                    직원 추가
-                  </button>
+                <div class="text-xs text-slate-500 mb-3">
+                  직원 추가는 위 "관리" 칸에서 입력 후 직원추가 버튼을 눌러주세요.
                 </div>
 
                 <div class="overflow-x-auto">
