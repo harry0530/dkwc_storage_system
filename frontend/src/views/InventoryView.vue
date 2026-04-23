@@ -1151,13 +1151,13 @@ const refreshUpload = async () => {
               <tr>
                 <th class="p-2">구품번</th>
                 <th class="p-2">신품번</th>
-                <th class="p-2">도번</th>
+                <th class="p-2 min-w-[220px]">도번</th>
                 <th class="p-2">품명</th>
                 <th class="p-2">재질</th>
                 <th class="p-2">규격</th>
-                <th class="p-2">열처리</th>
-                <th class="p-2">용접</th>
-                <th class="p-2">도금</th>
+                <th class="px-2 py-2 text-xs text-center min-w-[56px]">열처리</th>
+                <th class="px-2 py-2 text-xs text-center min-w-[56px]">용접</th>
+                <th class="px-2 py-2 text-xs text-center min-w-[56px]">도금</th>
                 <th class="p-2">현재재고</th>
                 <th class="p-2">최소재고</th>
                 <th class="p-2">보관위치</th>
@@ -1169,13 +1169,17 @@ const refreshUpload = async () => {
               <tr v-for="item in allPartsSorted" :key="`modal-${item.new_code || item.code}`" class="border-t hover:bg-slate-50">
                 <td class="p-2 font-medium">{{ item.old_code || "-" }}</td>
                 <td class="p-2">{{ item.new_code || "-" }}</td>
-                <td class="p-2">{{ item.drawing_number || "-" }}</td>
+                <td class="p-2">
+                  <div class="max-w-[320px] truncate" :title="item.drawing_number || '-'">
+                    {{ item.drawing_number || "-" }}
+                  </div>
+                </td>
                 <td class="p-2">{{ item.name || "-" }}</td>
                 <td class="p-2">{{ item.material || "-" }}</td>
                 <td class="p-2">{{ item.spec || "-" }}</td>
-                <td class="p-2">{{ item.heat_treatment || "-" }}</td>
-                <td class="p-2">{{ item.welding || "-" }}</td>
-                <td class="p-2">{{ item.plating || "-" }}</td>
+                <td class="px-2 py-2 text-center">{{ item.heat_treatment || "-" }}</td>
+                <td class="px-2 py-2 text-center">{{ item.welding || "-" }}</td>
+                <td class="px-2 py-2 text-center">{{ item.plating || "-" }}</td>
                 <td class="p-2">{{ item.quantity }}</td>
                 <td class="p-2">{{ item.min_stock }}</td>
                 <td class="p-2">{{ item.location || "-" }}</td>
@@ -1325,13 +1329,13 @@ const refreshUpload = async () => {
           <tr>
             <th class="p-3">구품번</th>
             <th class="p-3">신품번</th>
-            <th class="p-3">도번</th>
+            <th class="p-3 min-w-[260px]">도번</th>
             <th class="p-3">품명</th>
             <th class="p-3">재질</th>
             <th class="p-3">규격</th>
-            <th class="p-3">열처리</th>
-            <th class="p-3">용접</th>
-            <th class="p-3">도금</th>
+            <th class="px-2 py-3 text-xs text-center min-w-[64px]">열처리</th>
+            <th class="px-2 py-3 text-xs text-center min-w-[64px]">용접</th>
+            <th class="px-2 py-3 text-xs text-center min-w-[64px]">도금</th>
             <th class="p-3">현재재고</th>
             <th class="p-3">최소재고</th>
             <th class="p-3">보관위치</th>
@@ -1355,7 +1359,11 @@ const refreshUpload = async () => {
 
             <td class="p-3">{{ item.new_code || "-" }}</td>
 
-            <td class="p-3">{{ item.drawing_number || "-" }}</td>
+            <td class="p-3">
+              <div class="max-w-[360px] truncate" :title="item.drawing_number || '-'">
+                {{ item.drawing_number || "-" }}
+              </div>
+            </td>
 
             <td class="p-3">{{ item.name || "-" }}</td>
 
@@ -1363,11 +1371,11 @@ const refreshUpload = async () => {
 
             <td class="p-3">{{ item.spec || "-" }}</td>
 
-            <td class="p-3">{{ item.heat_treatment || "-" }}</td>
+            <td class="px-2 py-3 text-center">{{ item.heat_treatment || "-" }}</td>
 
-            <td class="p-3">{{ item.welding || "-" }}</td>
+            <td class="px-2 py-3 text-center">{{ item.welding || "-" }}</td>
 
-            <td class="p-3">{{ item.plating || "-" }}</td>
+            <td class="px-2 py-3 text-center">{{ item.plating || "-" }}</td>
 
             <td
               class="p-3 font-bold"
