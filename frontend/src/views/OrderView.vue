@@ -10,6 +10,9 @@ const companies = ref([]);
 const boms = ref([]);
 const inventory = ref([]);
 
+const loadingAll = ref(false);
+const loadError = ref("");
+
 const activeTab = ref("incoming");
 
 const companyInput = ref("");
@@ -153,25 +156,74 @@ const buildCodeOptions = (keyword) => {
 // 데이터 로드
 // =====================
 const loadAll = async () => {
-  const o = await api.get("/orders/");
-  const po = await api.get("/purchase-orders/");
-  const pr = await api.get("/purchase-orders/receipts");
-  const p = await api.get("/products/");
-  const c = await api.get("/companies/");
-  const b = await api.get("/bom/");
-  const i = await api.get("/inventory/");
+  loadingAll.value = true;
+  loadError.value = "";
 
-  orders.value = o.data;
-  purchaseOrders.value = po.data;
-  purchaseReceipts.value = pr.data;
-  products.value = p.data.map((item) => ({
-    ...item,
-    code: item.new_code || item.code || "",
-    old_code: item.old_code || ""
-  }));
-  companies.value = c.data;
-  boms.value = b.data;
-  inventory.value = i.data;
+  const results = await Promise.allSettled([
+    api.get("/orders/"),
+    api.get("/purchase-orders/"),
+    api.get("/purchase-orders/receipts"),
+    api.get("/products/"),
+    api.get("/companies/"),
+    api.get("/bom/"),
+    api.get("/inventory/"),
+  ]);
+
+  const [o, po, pr, p, c, b, i] = results;
+
+  const errors = [];
+
+  if (o.status === "fulfilled") {
+    orders.value = o.value.data;
+  } else {
+    errors.push("수주");
+  }
+
+  if (po.status === "fulfilled") {
+    purchaseOrders.value = po.value.data;
+  } else {
+    errors.push("발주");
+  }
+
+  if (pr.status === "fulfilled") {
+    purchaseReceipts.value = pr.value.data;
+  } else {
+    errors.push("입고이력");
+  }
+
+  if (p.status === "fulfilled") {
+    products.value = p.value.data.map((item) => ({
+      ...item,
+      code: item.new_code || item.code || "",
+      old_code: item.old_code || ""
+    }));
+  } else {
+    errors.push("제품");
+  }
+
+  if (c.status === "fulfilled") {
+    companies.value = c.value.data;
+  } else {
+    errors.push("업체");
+  }
+
+  if (b.status === "fulfilled") {
+    boms.value = b.value.data;
+  } else {
+    errors.push("BOM");
+  }
+
+  if (i.status === "fulfilled") {
+    inventory.value = i.value.data;
+  } else {
+    errors.push("재고");
+  }
+
+  if (errors.length) {
+    loadError.value = `데이터 로드 실패: ${errors.join(", ")} (네트워크/서버 상태를 확인해줘)`;
+  }
+
+  loadingAll.value = false;
 };
 
 const closeAllDropdowns = () => {
@@ -1179,10 +1231,25 @@ const deletePurchaseBatch = async (batchId) => {
         </div>
       </div>
 
+      <div v-if="loadError" class="mb-4 p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-sm">
+        {{ loadError }}
+      </div>
+      <div v-else-if="loadingAll" class="mb-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm">
+        로딩 중...
+      </div>
+
       <div class="panel overflow-hidden">
         <table class="w-full text-left">
 
           <tbody>
+            <tr v-if="!purchaseBatches.length">
+              <td class="p-4 text-sm text-slate-500" colspan="8">
+                발주 내역이 없습니다.
+                <span v-if="purchaseOrders.length && !showPurchaseCompleted && !pendingPurchaseOrders.length && completedPurchaseOrders.length">
+                  (현재 대기 발주가 없어요. 상단의 "완료내역 보기"를 눌러보세요.)
+                </span>
+              </td>
+            </tr>
             <template v-for="batch in purchaseBatches" :key="batch.key">
               <tr class="border-t bg-slate-50/70">
                 <td class="p-3 font-semibold" colspan="8">
