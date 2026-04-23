@@ -147,6 +147,59 @@ const getBOM = (code) => {
 };
 
 // =====================
+// 생산 가능 수량 (현재 단품 재고 기준)
+// =====================
+const buildableQtyByFinished = computed(() => {
+  const qtyMap = new Map();
+  for (const p of products.value) {
+    const t = (p.type || "").toString().toUpperCase();
+    if (t !== "PART") continue;
+    const code = p.code || p.new_code || p.product_code;
+    if (!code) continue;
+    qtyMap.set(String(code), Number(p.quantity || 0));
+  }
+
+  const grouped = new Map();
+  for (const b of boms.value) {
+    const parent = (b.parent_code || "").toString();
+    if (!parent) continue;
+    if (!grouped.has(parent)) grouped.set(parent, []);
+    grouped.get(parent).push(b);
+  }
+
+  const out = new Map();
+  for (const [parent, items] of grouped.entries()) {
+    let minPossible = Infinity;
+    let hasRequirement = false;
+
+    for (const b of items) {
+      const need = Number(b.quantity || 0);
+      if (!Number.isFinite(need) || need <= 0) continue;
+      const child = (b.child_code || "").toString();
+      if (!child) continue;
+      hasRequirement = true;
+      const have = qtyMap.get(child) ?? 0;
+      const possible = Math.floor(have / need);
+      if (possible < minPossible) minPossible = possible;
+    }
+
+    out.set(parent, hasRequirement ? Math.max(0, minPossible) : null);
+  }
+
+  return out;
+});
+
+const getBuildableQtyLabel = (product) => {
+  const t = (product?.type || "").toString().toUpperCase();
+  if (t !== "FINISHED") return "-";
+  const codeValue = product?.code || product?.new_code || product?.product_code;
+  if (!codeValue) return "-";
+  const v = buildableQtyByFinished.value.get(String(codeValue));
+  if (v === null || v === undefined) return "-";
+  return String(v);
+};
+
+// =====================
 // BOM 추가
 // =====================
 const addBOM = async (parent_code) => {
@@ -715,6 +768,7 @@ const deferHide = (fn) => {
             <th class="p-3">신품번</th>
             <th class="p-3">제품명</th>
             <th class="p-3">규격</th>
+            <th class="p-3">생산가능</th>
           </tr>
         </thead>
 
@@ -738,10 +792,11 @@ const deferHide = (fn) => {
               </button>
             </td>
             <td class="p-3">{{ p.spec || "-" }}</td>
+            <td class="p-3 font-semibold">{{ getBuildableQtyLabel(p) }}</td>
             </tr>
 
             <tr v-if="expandedBOM[p.code]" class="border-t bg-slate-50/70">
-              <td colspan="4" class="p-3">
+              <td colspan="5" class="p-3">
                 <div class="panel bg-white/60">
                   <div class="panel-header flex items-center justify-between">
                     <span>BOM</span>
