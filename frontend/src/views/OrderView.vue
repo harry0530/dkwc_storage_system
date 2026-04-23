@@ -529,6 +529,49 @@ const onClickDownloadPurchaseBatchXlsx = async (batchId) => {
   }
 };
 
+const onClickDownloadSalesSummaryXlsx = async () => {
+  try {
+    const params = new URLSearchParams();
+    if ((salesFromDate.value || "").trim()) params.set("from", salesFromDate.value.trim());
+    if ((salesToDate.value || "").trim()) params.set("to", salesToDate.value.trim());
+    const qs = params.toString();
+
+    const fileRes = await api.get(`/orders/summary-xlsx${qs ? `?${qs}` : ""}`, {
+      responseType: "blob"
+    });
+
+    const blob = fileRes.data instanceof Blob
+      ? fileRes.data
+      : new Blob([fileRes.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+
+    const contentType = String(fileRes?.headers?.["content-type"] || blob.type || "");
+    if (contentType.includes("application/json")) {
+      const text = await blob.text();
+      throw new Error(text || "download_failed");
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const disposition = fileRes?.headers?.["content-disposition"] || "";
+    const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i);
+    const filename = match?.[1]
+      ? decodeURIComponent(match[1])
+      : (match?.[2] || "sales_summary.xlsx");
+
+    a.download = filename;
+    a.href = url;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1500);
+  } catch (err) {
+    alert("엑셀 다운로드에 실패했습니다. (네트워크/권한/팝업 설정 확인)");
+  }
+};
+
 const buildQuoteBody = () => {
   const companyName = selectedCompany.value || companyInput.value || "";
   const productLabel = displayProduct.value || (selectedCode.value || codeInput.value || "");
@@ -919,7 +962,15 @@ const deletePurchaseBatch = async (batchId) => {
     <div class="panel p-3 mb-6">
       <div class="panel-header flex items-center justify-between">
         <span>기간별 수주 합계</span>
-        <span class="text-xs text-slate-500">총 {{ totalSalesQty }}개</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">총 {{ totalSalesQty }}개</span>
+          <button
+            class="btn btn-secondary h-8 px-2 text-xs"
+            @click="onClickDownloadSalesSummaryXlsx"
+          >
+            엑셀 저장
+          </button>
+        </div>
       </div>
       <div class="p-3 flex flex-col gap-3">
         <div class="flex flex-wrap gap-2 items-center">
