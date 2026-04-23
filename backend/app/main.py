@@ -86,6 +86,21 @@ def ensure_purchase_order_columns():
         pass
 
 
+def ensure_company_employee_email_column():
+    db_url = str(engine.url)
+    if db_url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE company_employees ADD COLUMN IF NOT EXISTS email TEXT")
+            )
+    else:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE company_employees ADD COLUMN email TEXT"))
+        except Exception:
+            pass
+
+
 def ensure_product_drawing_number_column():
     db_url = str(engine.url)
     if db_url.startswith("postgresql"):
@@ -133,6 +148,7 @@ if os.getenv("RESET_DB") == "1":
         Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 ensure_company_email_column()
+ensure_company_employee_email_column()
 ensure_purchase_order_columns()
 ensure_product_drawing_number_column()
 ensure_product_process_columns()

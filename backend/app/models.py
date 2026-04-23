@@ -23,6 +23,7 @@ class CompanyEmployee(Base):
     name = Column(String)
     title = Column(String)
     phone = Column(String)
+    email = Column(String)
 
 class Product(Base):
     __tablename__ = "products"

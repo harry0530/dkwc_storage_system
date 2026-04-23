@@ -4,6 +4,7 @@ import api from "../api";
 
 const companies = ref([]);
 const employeesByCompany = ref({});
+const allEmployees = ref([]);
 const expandedCompanyId = ref("");
 
 const name = ref("");
@@ -28,10 +29,24 @@ const empDepartment = ref("");
 const empName = ref("");
 const empTitle = ref("");
 const empPhone = ref("");
+const empEmail = ref("");
+
+// 직원 수정
+const editingEmployeeId = ref("");
+const editEmpDepartment = ref("");
+const editEmpName = ref("");
+const editEmpTitle = ref("");
+const editEmpPhone = ref("");
+const editEmpEmail = ref("");
 
 const loadCompanies = async () => {
   const res = await api.get("/companies/");
   companies.value = res.data;
+};
+
+const loadAllEmployees = async () => {
+  const res = await api.get("/companies/employees");
+  allEmployees.value = Array.isArray(res.data) ? res.data : [];
 };
 
 const loadEmployees = async (companyId) => {
@@ -65,12 +80,26 @@ const createCompany = async () => {
 const filteredCompanies = computed(() => {
   const keyword = (companySearch.value || "").trim().toLowerCase();
   if (!keyword) return companies.value;
+
+  const byCompanyId = new Map();
+  for (const e of allEmployees.value || []) {
+    const cid = String(e.company_id || "");
+    if (!cid) continue;
+    if (!byCompanyId.has(cid)) byCompanyId.set(cid, []);
+    byCompanyId.get(cid).push(e);
+  }
+
   return companies.value.filter((c) =>
     (c.name || "").toLowerCase().includes(keyword) ||
     (c.email || "").toLowerCase().includes(keyword) ||
     (c.phone || "").toLowerCase().includes(keyword) ||
     (c.fax || "").toLowerCase().includes(keyword) ||
-    (c.address || "").toLowerCase().includes(keyword)
+    (c.address || "").toLowerCase().includes(keyword) ||
+    (byCompanyId.get(String(c.id)) || []).some((e) => {
+      const en = (e?.name || "").toLowerCase();
+      const ee = (e?.email || "").toLowerCase();
+      return en.includes(keyword) || ee.includes(keyword);
+    })
   );
 });
 
@@ -168,21 +197,59 @@ const addEmployee = async (companyId) => {
     department: empDepartment.value,
     name: empName.value,
     title: empTitle.value,
-    phone: empPhone.value
+    phone: empPhone.value,
+    email: empEmail.value
   });
   empDepartment.value = "";
   empName.value = "";
   empTitle.value = "";
   empPhone.value = "";
+  empEmail.value = "";
   await loadEmployees(String(companyId));
+  await loadAllEmployees();
 };
 
 const deleteEmployee = async (employeeId, companyId) => {
   await api.delete(`/companies/employees/${employeeId}`);
   await loadEmployees(String(companyId));
+  await loadAllEmployees();
 };
 
-onMounted(loadCompanies);
+const startEditEmployee = (emp) => {
+  editingEmployeeId.value = String(emp.id);
+  editEmpDepartment.value = emp.department || "";
+  editEmpName.value = emp.name || "";
+  editEmpTitle.value = emp.title || "";
+  editEmpPhone.value = emp.phone || "";
+  editEmpEmail.value = emp.email || "";
+};
+
+const cancelEditEmployee = () => {
+  editingEmployeeId.value = "";
+  editEmpDepartment.value = "";
+  editEmpName.value = "";
+  editEmpTitle.value = "";
+  editEmpPhone.value = "";
+  editEmpEmail.value = "";
+};
+
+const saveEditEmployee = async (employeeId, companyId) => {
+  await api.put(`/companies/employees/${employeeId}`, {
+    department: editEmpDepartment.value,
+    name: editEmpName.value,
+    title: editEmpTitle.value,
+    phone: editEmpPhone.value,
+    email: editEmpEmail.value
+  });
+  cancelEditEmployee();
+  await loadEmployees(String(companyId));
+  await loadAllEmployees();
+};
+
+onMounted(async () => {
+  await loadCompanies();
+  await loadAllEmployees();
+});
 </script>
 
 <template>
@@ -304,6 +371,8 @@ onMounted(loadCompanies);
                     class="input w-32" />
                   <input v-model="empPhone" placeholder="전화번호"
                     class="input w-40" />
+                  <input v-model="empEmail" placeholder="이메일"
+                    class="input w-56" />
                   <button @click="addEmployee(c.id)" class="btn btn-primary">
                     직원 추가
                   </button>
@@ -317,30 +386,73 @@ onMounted(loadCompanies);
                         <th class="p-2">이름</th>
                         <th class="p-2">직급</th>
                         <th class="p-2">전화번호</th>
+                        <th class="p-2">이메일</th>
                         <th class="p-2">관리</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr
-                        v-for="emp in employeesByCompany[String(c.id)] || []"
-                        :key="emp.id"
-                        class="border-t"
-                      >
-                        <td class="p-2">{{ emp.department || "-" }}</td>
-                        <td class="p-2">{{ emp.name || "-" }}</td>
-                        <td class="p-2">{{ emp.title || "-" }}</td>
-                        <td class="p-2">{{ emp.phone || "-" }}</td>
-                        <td class="p-2">
-                          <button
-                            @click="deleteEmployee(emp.id, c.id)"
-                            class="btn btn-danger h-7 px-2 text-xs"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
+                      <template v-for="emp in employeesByCompany[String(c.id)] || []" :key="emp.id">
+                        <tr class="border-t">
+                          <template v-if="editingEmployeeId === String(emp.id)">
+                            <td class="p-2">
+                              <input v-model="editEmpDepartment" class="input h-8 w-28" />
+                            </td>
+                            <td class="p-2">
+                              <input v-model="editEmpName" class="input h-8 w-28" />
+                            </td>
+                            <td class="p-2">
+                              <input v-model="editEmpTitle" class="input h-8 w-28" />
+                            </td>
+                            <td class="p-2">
+                              <input v-model="editEmpPhone" class="input h-8 w-36" />
+                            </td>
+                            <td class="p-2">
+                              <input v-model="editEmpEmail" class="input h-8 w-44" />
+                            </td>
+                            <td class="p-2">
+                              <div class="flex gap-2">
+                                <button
+                                  @click="saveEditEmployee(emp.id, c.id)"
+                                  class="btn btn-info h-7 px-2 text-xs"
+                                >
+                                  저장
+                                </button>
+                                <button
+                                  @click="cancelEditEmployee"
+                                  class="btn btn-secondary h-7 px-2 text-xs"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            </td>
+                          </template>
+                          <template v-else>
+                            <td class="p-2">{{ emp.department || "-" }}</td>
+                            <td class="p-2">{{ emp.name || "-" }}</td>
+                            <td class="p-2">{{ emp.title || "-" }}</td>
+                            <td class="p-2">{{ emp.phone || "-" }}</td>
+                            <td class="p-2">{{ emp.email || "-" }}</td>
+                            <td class="p-2">
+                              <div class="flex gap-2">
+                                <button
+                                  @click="startEditEmployee(emp)"
+                                  class="btn btn-secondary h-7 px-2 text-xs"
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  @click="deleteEmployee(emp.id, c.id)"
+                                  class="btn btn-danger h-7 px-2 text-xs"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </td>
+                          </template>
+                        </tr>
+                      </template>
                       <tr v-if="(employeesByCompany[String(c.id)] || []).length === 0">
-                        <td colspan="5" class="p-3 text-center text-gray-400">
+                        <td colspan="6" class="p-3 text-center text-gray-400">
                           직원 정보가 없습니다.
                         </td>
                       </tr>

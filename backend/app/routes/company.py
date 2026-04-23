@@ -89,7 +89,8 @@ def create_employee(company_id: int, data: dict, db: Session = Depends(get_db)):
         department=data.get("department", ""),
         name=data.get("name", ""),
         title=data.get("title", ""),
-        phone=data.get("phone", "")
+        phone=data.get("phone", ""),
+        email=data.get("email", ""),
     )
 
     db.add(employee)
@@ -99,12 +100,52 @@ def create_employee(company_id: int, data: dict, db: Session = Depends(get_db)):
     return employee
 
 
+# ⭐ 거래처 직원 전체 조회 (검색/필터용)
+@router.get("/employees")
+def list_all_employees(db: Session = Depends(get_db)):
+    rows = db.query(models.CompanyEmployee).all()
+    return [
+        {
+            "id": e.id,
+            "company_id": e.company_id,
+            "department": e.department or "",
+            "name": e.name or "",
+            "title": e.title or "",
+            "phone": e.phone or "",
+            "email": getattr(e, "email", "") or "",
+        }
+        for e in rows
+    ]
+
+
 # ⭐ 거래처 직원 조회
 @router.get("/{company_id}/employees")
 def get_employees(company_id: int, db: Session = Depends(get_db)):
     return db.query(models.CompanyEmployee).filter(
         models.CompanyEmployee.company_id == company_id
     ).all()
+
+
+# ⭐ 거래처 직원 수정
+@router.put("/employees/{employee_id}")
+def update_employee(employee_id: int, data: dict, db: Session = Depends(get_db)):
+    employee = db.query(models.CompanyEmployee).filter(
+        models.CompanyEmployee.id == employee_id
+    ).first()
+
+    if not employee:
+        raise HTTPException(status_code=404, detail="직원 없음")
+
+    employee.department = data.get("department", employee.department)
+    employee.name = data.get("name", employee.name)
+    employee.title = data.get("title", employee.title)
+    employee.phone = data.get("phone", employee.phone)
+    if hasattr(employee, "email"):
+        employee.email = data.get("email", getattr(employee, "email", ""))
+
+    db.commit()
+    db.refresh(employee)
+    return employee
 
 
 # ⭐ 거래처 직원 삭제
