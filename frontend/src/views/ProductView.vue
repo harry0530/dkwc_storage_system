@@ -760,7 +760,7 @@ const deferHide = (fn) => {
         </button>
       </div>
 
-      <table class="w-full text-left">
+      <table class="w-full text-left table-nowrap">
 
         <thead class="table-head">
           <tr>
@@ -809,7 +809,7 @@ const deferHide = (fn) => {
                   </div>
                   <div class="p-3">
                     <div v-if="getBOM(p.code).length" class="overflow-x-auto">
-                      <table class="w-full text-sm text-left">
+                      <table class="w-full text-sm text-left table-nowrap">
                         <thead class="bg-slate-100 text-slate-600">
                           <tr>
                             <th class="p-2">구품번</th>

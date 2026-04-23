@@ -1127,8 +1127,8 @@ const deletePurchaseBatch = async (batchId) => {
       ⚠ {{ stockWarning }}
     </div>
 
-    <div class="panel overflow-hidden">
-      <table class="w-full text-left">
+    <div class="panel overflow-x-auto">
+      <table class="w-full text-left table-nowrap">
 
         <thead class="table-head">
           <tr>
@@ -1238,8 +1238,8 @@ const deletePurchaseBatch = async (batchId) => {
         로딩 중...
       </div>
 
-      <div class="panel overflow-hidden">
-        <table class="w-full text-left">
+      <div class="panel overflow-x-auto">
+        <table class="w-full text-left table-nowrap">
 
           <tbody>
             <tr v-if="!purchaseBatches.length">

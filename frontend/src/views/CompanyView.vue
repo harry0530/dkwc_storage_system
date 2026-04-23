@@ -214,7 +214,7 @@ onMounted(loadCompanies);
 
     </div>
 
-    <div class="panel overflow-hidden">
+    <div class="panel overflow-x-auto">
       <div class="p-3 border-b bg-slate-50">
         <input
           v-model="companySearch"
@@ -223,7 +223,7 @@ onMounted(loadCompanies);
         />
       </div>
 
-      <table class="w-full text-left">
+      <table class="w-full text-left table-nowrap">
 
         <thead class="table-head">
           <tr>
@@ -310,7 +310,7 @@ onMounted(loadCompanies);
                 </div>
 
                 <div class="overflow-x-auto">
-                  <table class="w-full text-left text-sm">
+                  <table class="w-full text-left text-sm table-nowrap">
                     <thead class="table-head">
                       <tr>
                         <th class="p-2">부서</th>

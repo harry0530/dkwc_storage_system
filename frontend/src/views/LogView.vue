@@ -118,8 +118,8 @@ onMounted(loadLogs);
     </div>
 
     <!-- 테이블 -->
-    <div class="bg-white shadow rounded-xl overflow-hidden">
-      <table class="w-full text-left">
+    <div class="bg-white shadow rounded-xl overflow-x-auto">
+      <table class="w-full text-left table-nowrap">
 
         <thead class="bg-gray-100">
           <tr>

@@ -1146,7 +1146,7 @@ const refreshUpload = async () => {
           <button class="btn btn-secondary" @click="showAllPartsModal = false">닫기</button>
         </div>
         <div class="p-3 overflow-auto max-h-[75vh]">
-          <table class="w-full text-left">
+          <table class="w-full text-left table-nowrap">
             <thead class="table-head">
               <tr>
                 <th class="p-2">구품번</th>
@@ -1318,8 +1318,8 @@ const refreshUpload = async () => {
     </div>
 
     <!-- 재고 테이블 -->
-    <div class="panel overflow-hidden">
-      <table class="w-full text-left">
+    <div class="panel overflow-x-auto">
+      <table class="w-full text-left table-nowrap">
 
         <thead class="table-head">
           <tr>
@@ -1415,8 +1415,8 @@ const refreshUpload = async () => {
         📊 {{ selectedProduct }} 로그
       </h3>
 
-      <div class="panel overflow-hidden">
-        <table class="w-full text-left">
+      <div class="panel overflow-x-auto">
+        <table class="w-full text-left table-nowrap">
 
           <thead class="table-head">
             <tr>
