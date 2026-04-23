@@ -43,6 +43,10 @@ const stockWarning = ref("");
 const showCompleted = ref(false);
 const showPurchaseCompleted = ref(false);
 
+// 기간별 수주 합계 (생성일 기준)
+const salesFromDate = ref(""); // YYYY-MM-DD
+const salesToDate = ref("");   // YYYY-MM-DD
+
 // 견적 이메일
 const showQuoteModal = ref(false);
 const quoteTo = ref("");
@@ -51,6 +55,28 @@ const quoteBody = ref("");
 
 // ⭐ 공통 문자열 정리 함수 (핵심)
 const clean = (v) => (v || "").trim().toLowerCase();
+
+const parseUtcDate = (dateValue) => {
+  if (!dateValue) return null;
+  const raw = String(dateValue).trim();
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const withTimezone = /[zZ]|[+\-]\d{2}:\d{2}$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const date = new Date(withTimezone);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatKstYmd = (dateValue) => {
+  const date = parseUtcDate(dateValue);
+  if (!date) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+};
 
 const resolveProduct = (inputCode) => {
   const raw = (inputCode || "").trim();
@@ -624,6 +650,50 @@ const visibleOrders = computed(() =>
   showCompleted.value ? completedOrders.value : pendingOrders.value
 );
 
+const ordersInSalesRange = computed(() => {
+  const from = (salesFromDate.value || "").trim();
+  const to = (salesToDate.value || "").trim();
+  if (!from && !to) return orders.value;
+
+  return orders.value.filter((o) => {
+    const ymd = formatKstYmd(o?.created_at);
+    if (!ymd) return false;
+    if (from && ymd < from) return false;
+    if (to && ymd > to) return false;
+    return true;
+  });
+});
+
+const salesSummaryRows = computed(() => {
+  const map = new Map();
+
+  for (const o of ordersInSalesRange.value) {
+    if (!o || typeof o !== "object") continue;
+    const newCode = (o.new_code || o.product_code || "").toString();
+    if (!newCode) continue;
+    const key = newCode.toLowerCase();
+
+    if (!map.has(key)) {
+      map.set(key, {
+        old_code: (o.old_code || "").toString(),
+        new_code: newCode,
+        product_name: (o.product_name || "").toString(),
+        quantity: 0,
+      });
+    }
+
+    map.get(key).quantity += Number(o.quantity || 0);
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    String(a.new_code || "").localeCompare(String(b.new_code || ""))
+  );
+});
+
+const totalSalesQty = computed(() =>
+  salesSummaryRows.value.reduce((sum, r) => sum + Number(r.quantity || 0), 0)
+);
+
 const pendingPurchaseOrders = computed(() =>
   purchaseOrders.value.filter((o) => o.status !== "DONE")
 );
@@ -844,6 +914,46 @@ const deletePurchaseBatch = async (batchId) => {
           {{ showCompleted ? "대기목록 보기" : "완료내역 보기" }}
         </button>
       </div>
+
+    <!-- 기간별 수주 합계 (생성일 기준) -->
+    <div class="panel p-3 mb-6">
+      <div class="panel-header flex items-center justify-between">
+        <span>기간별 수주 합계</span>
+        <span class="text-xs text-slate-500">총 {{ totalSalesQty }}개</span>
+      </div>
+      <div class="p-3 flex flex-col gap-3">
+        <div class="flex flex-wrap gap-2 items-center">
+          <input v-model="salesFromDate" type="date" class="input w-44" aria-label="시작일" />
+          <span class="text-slate-400">~</span>
+          <input v-model="salesToDate" type="date" class="input w-44" aria-label="종료일" />
+          <button class="btn btn-secondary" @click="salesFromDate=''; salesToDate=''">초기화</button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-100 text-slate-600">
+              <tr>
+                <th class="p-2">구품번</th>
+                <th class="p-2">신품번</th>
+                <th class="p-2">제품명</th>
+                <th class="p-2 text-right">수량</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in salesSummaryRows" :key="`sales-${row.new_code}`" class="border-t">
+                <td class="p-2 font-medium">{{ row.old_code || "-" }}</td>
+                <td class="p-2">{{ row.new_code || "-" }}</td>
+                <td class="p-2">{{ row.product_name || "-" }}</td>
+                <td class="p-2 text-right font-semibold">{{ row.quantity }}</td>
+              </tr>
+              <tr v-if="salesSummaryRows.length === 0">
+                <td class="p-3 text-center text-slate-400" colspan="4">해당 기간 수주가 없습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
     <div class="panel p-3 mb-6 flex gap-3 items-center flex-wrap overflow-visible">
 
