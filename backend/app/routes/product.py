@@ -59,6 +59,76 @@ def _to_int(value):
         raise HTTPException(status_code=400, detail=f"숫자 형식 오류: {text}") from exc
 
 
+def _looks_like_material_code(value: str) -> bool:
+    """
+    Heuristic: common Korean manufacturing material codes (SS41, SCM440, S45C, SUS304, AL6061, etc.).
+    """
+    v = _normalize_excel_value(value).upper().replace(" ", "")
+    if not v:
+        return False
+    if len(v) > 16:
+        return False
+    # Avoid treating dimension specs as material.
+    if any(ch in v for ch in ("*", "X", "×", "T")) and any(ch.isdigit() for ch in v):
+        return False
+    prefixes = ("SS", "SCM", "SUS", "SPCC", "SPHC", "AL", "A", "S", "SM", "SK", "STD")
+    if v.startswith(prefixes) and any(ch.isdigit() for ch in v):
+        return True
+    return False
+
+
+def _looks_like_spec(value: str) -> bool:
+    """
+    Heuristic: dimension-ish strings like 450*365*32T, D260*L45, 65*266, 1516, etc.
+    """
+    v = _normalize_excel_value(value).upper()
+    if not v:
+        return False
+    has_digit = any(ch.isdigit() for ch in v)
+    has_dim_sep = any(ch in v for ch in ("*", "X", "×", "D", "L", "T", "Ø"))
+    return has_digit and has_dim_sep
+
+
+def _normalize_import_part_row(parsed: dict) -> dict:
+    """
+    Accepts "동광 자체 품목" style rows where columns are often shifted:
+      도번 칸에 품명, 품명 칸에 규격, 규격 칸에 재질이 들어오는 형태.
+
+    If this pattern is detected, we remap to:
+      name <- drawing_number
+      spec <- name
+      material <- spec
+      drawing_number <- ""  (actual 도번이 별도로 없는 경우가 많음)
+    """
+    drawing = _normalize_excel_value(parsed.get("drawing_number", ""))
+    name = _normalize_excel_value(parsed.get("name", ""))
+    spec = _normalize_excel_value(parsed.get("spec", ""))
+    material = _normalize_excel_value(parsed.get("material", ""))
+
+    # "Y" often appears as a marker (heat treatment / welding / plating) in legacy sheets.
+    if material.upper() == "Y" and not _normalize_excel_value(parsed.get("heat_treatment", "")):
+        parsed["heat_treatment"] = "Y"
+        material = ""
+        parsed["material"] = ""
+
+    # Detect shifted layout.
+    shifted = (
+        bool(drawing)
+        and bool(name)
+        and _looks_like_spec(name)
+        and _looks_like_material_code(spec)
+        and (not material or material.upper() in {"Y", "N"})
+    )
+    if not shifted:
+        return parsed
+
+    parsed["name"] = drawing
+    parsed["spec"] = name
+    parsed["material"] = spec
+    parsed["drawing_number"] = ""
+    return parsed
+
+
 def _build_header_map(values, aliases_map):
     header_values = [_normalize_excel_value(v) for v in values]
     raw_mapping = {name: idx for idx, name in enumerate(header_values) if name}
@@ -313,6 +383,7 @@ def import_parts(
             "location": _normalize_excel_value(row[col["location"]]),
             "supplier_name": _normalize_excel_value(row[col["supplier_name"]]),
         }
+        parsed = _normalize_import_part_row(parsed)
         parsed_rows.append(parsed)
 
         product = db.query(models.Product).filter(
