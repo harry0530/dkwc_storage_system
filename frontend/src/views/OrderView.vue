@@ -822,7 +822,7 @@ const deletePurchaseBatch = async (batchId) => {
         :class="activeTab === 'incoming' ? 'btn-primary' : 'btn-secondary'"
         @click="activeTab = 'incoming'"
       >
-        &#xB4E4;&#xC5B4;&#xC628; &#xC218;&#xC8FC;
+        &#xC218;&#xC8FC;
       </button>
       <button
         class="btn"
