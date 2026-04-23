@@ -24,8 +24,14 @@ const editPhone = ref("");
 const editFax = ref("");
 const editAddress = ref("");
 
-// 직원 입력
-const employeeDraftByCompany = ref({});
+// 직원 추가 (모달)
+const showAddEmployeeModal = ref(false);
+const addEmployeeCompanyId = ref("");
+const addEmpDepartment = ref("");
+const addEmpName = ref("");
+const addEmpTitle = ref("");
+const addEmpPhone = ref("");
+const addEmpEmail = ref("");
 
 // 직원 수정
 const editingEmployeeId = ref("");
@@ -38,17 +44,6 @@ const editEmpEmail = ref("");
 const loadCompanies = async () => {
   const res = await api.get("/companies/");
   companies.value = res.data;
-
-  // Ensure per-company employee drafts exist so v-model bindings are stable.
-  const next = { ...(employeeDraftByCompany.value || {}) };
-  for (const c of companies.value || []) {
-    const key = String(c?.id ?? "");
-    if (!key) continue;
-    if (!next[key]) {
-      next[key] = { department: "", name: "", title: "", phone: "", email: "" };
-    }
-  }
-  employeeDraftByCompany.value = next;
 };
 
 const loadAllEmployees = async () => {
@@ -198,31 +193,39 @@ const toggleEmployees = async (companyId) => {
   }
 };
 
+const openAddEmployeeModal = (companyId) => {
+  addEmployeeCompanyId.value = String(companyId);
+  addEmpDepartment.value = "";
+  addEmpName.value = "";
+  addEmpTitle.value = "";
+  addEmpPhone.value = "";
+  addEmpEmail.value = "";
+  showAddEmployeeModal.value = true;
+};
+
+const closeAddEmployeeModal = () => {
+  showAddEmployeeModal.value = false;
+  addEmployeeCompanyId.value = "";
+  addEmpDepartment.value = "";
+  addEmpName.value = "";
+  addEmpTitle.value = "";
+  addEmpPhone.value = "";
+  addEmpEmail.value = "";
+};
+
 const addEmployee = async (companyId) => {
-  const key = String(companyId);
-  const draft = employeeDraftByCompany.value?.[key] || {
-    department: "",
-    name: "",
-    title: "",
-    phone: "",
-    email: ""
-  };
-
-  if (!String(draft.name || "").trim()) return;
-  await api.post(`/companies/${companyId}/employees`, {
-    department: draft.department,
-    name: draft.name,
-    title: draft.title,
-    phone: draft.phone,
-    email: draft.email
+  const cid = String(companyId || addEmployeeCompanyId.value || "");
+  if (!cid) return;
+  if (!addEmpName.value.trim()) return;
+  await api.post(`/companies/${cid}/employees`, {
+    department: addEmpDepartment.value,
+    name: addEmpName.value,
+    title: addEmpTitle.value,
+    phone: addEmpPhone.value,
+    email: addEmpEmail.value
   });
-
-  employeeDraftByCompany.value = {
-    ...(employeeDraftByCompany.value || {}),
-    [key]: { department: "", name: "", title: "", phone: "", email: "" }
-  };
-
-  await loadEmployees(String(companyId));
+  closeAddEmployeeModal();
+  await loadEmployees(cid);
   await loadAllEmployees();
 };
 
@@ -273,6 +276,37 @@ onMounted(async () => {
   <div>
 
     <h2 class="page-title mb-6">🏢 거래처 관리</h2>
+
+    <!-- 직원 추가 모달 -->
+    <div v-if="showAddEmployeeModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="closeAddEmployeeModal"></div>
+      <div class="relative bg-white w-[92vw] max-w-xl rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="font-semibold">직원 추가</div>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-secondary" @click="closeAddEmployeeModal">닫기</button>
+            <button
+              class="btn btn-primary"
+              @click="addEmployee(addEmployeeCompanyId)"
+            >
+              추가
+            </button>
+          </div>
+        </div>
+        <div class="p-4 flex flex-col gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input v-model="addEmpName" placeholder="이름(필수)" class="input w-full" />
+            <input v-model="addEmpDepartment" placeholder="부서" class="input w-full" />
+            <input v-model="addEmpTitle" placeholder="직급" class="input w-full" />
+            <input v-model="addEmpPhone" placeholder="전화번호" class="input w-full" />
+            <input v-model="addEmpEmail" placeholder="이메일" class="input w-full sm:col-span-2" />
+          </div>
+          <div class="text-xs text-slate-500">
+            이름만 필수이고 나머지는 선택입니다.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="panel p-3 mb-6 flex gap-2 flex-wrap">
 
@@ -363,51 +397,24 @@ onMounted(async () => {
               <td class="p-3">{{ c.fax }}</td>
               <td class="p-3">{{ c.address }}</td>
               <td class="p-3">
-                <div class="flex flex-wrap gap-2 items-center" @click.stop>
-                  <button @click="startEditCompany(c)"
-                    class="btn btn-info h-8 px-2 text-xs">
-                    수정
-                  </button>
-                  <button @click="deleteCompany(c.id)"
-                    class="btn btn-danger h-8 px-2 text-xs">
-                    삭제
-                  </button>
+                  <div class="flex flex-wrap gap-2 items-center" @click.stop>
+                    <button @click="startEditCompany(c)"
+                      class="btn btn-info h-8 px-2 text-xs">
+                      수정
+                    </button>
+                    <button @click="deleteCompany(c.id)"
+                      class="btn btn-danger h-8 px-2 text-xs">
+                      삭제
+                    </button>
 
-                  <div class="h-6 w-px bg-slate-200 mx-1"></div>
-
-                  <input
-                    v-model="employeeDraftByCompany[String(c.id)].name"
-                    placeholder="직원이름"
-                    class="input h-8 w-28"
-                  />
-                  <input
-                    v-model="employeeDraftByCompany[String(c.id)].department"
-                    placeholder="부서"
-                    class="input h-8 w-24"
-                  />
-                  <input
-                    v-model="employeeDraftByCompany[String(c.id)].title"
-                    placeholder="직급"
-                    class="input h-8 w-24"
-                  />
-                  <input
-                    v-model="employeeDraftByCompany[String(c.id)].phone"
-                    placeholder="전화"
-                    class="input h-8 w-32"
-                  />
-                  <input
-                    v-model="employeeDraftByCompany[String(c.id)].email"
-                    placeholder="이메일"
-                    class="input h-8 w-44"
-                  />
-                  <button
-                    @click="addEmployee(c.id)"
-                    class="btn btn-primary h-8 px-2 text-xs"
-                    title="직원 추가"
-                  >
-                    직원추가
-                  </button>
-                </div>
+                    <button
+                      @click="openAddEmployeeModal(c.id)"
+                      class="btn btn-secondary h-8 px-2 text-xs"
+                      title="직원 추가"
+                    >
+                      직원추가
+                    </button>
+                  </div>
               </td>
             </template>
 
@@ -415,7 +422,7 @@ onMounted(async () => {
             <tr v-if="expandedCompanyId === String(c.id)" class="border-t bg-slate-50/70">
               <td colspan="6" class="p-3">
                 <div class="text-xs text-slate-500 mb-3">
-                  직원 추가는 위 "관리" 칸에서 입력 후 직원추가 버튼을 눌러주세요.
+                  직원 추가는 위 "관리" 칸의 직원추가 버튼을 눌러주세요.
                 </div>
 
                 <div class="overflow-x-auto">
