@@ -778,7 +778,7 @@ const toggleBatch = (batch) => {
 };
 
 const deleteOrder = async (id) => {
-  const ok = window.confirm("주문을 삭제(거부)할까요?");
+  const ok = window.confirm("\uC218\uC8FC\uB97C \uC0AD\uC81C(\uAC70\uBD80)\uD560\uAE4C\uC694?");
   if (!ok) return;
   await api.delete(`/orders/${id}`);
   loadAll();
@@ -820,7 +820,7 @@ const deletePurchaseBatch = async (batchId) => {
         :class="activeTab === 'incoming' ? 'btn-primary' : 'btn-secondary'"
         @click="activeTab = 'incoming'"
       >
-        들어온 주문
+        &#xB4E4;&#xC5B4;&#xC628; &#xC218;&#xC8FC;
       </button>
       <button
         class="btn"
@@ -834,7 +834,7 @@ const deletePurchaseBatch = async (batchId) => {
     <div v-if="activeTab === 'incoming'">
 
       <div class="flex items-center justify-between mb-6">
-        <h2 class="page-title">📋 주문 관리</h2>
+        <h2 class="page-title">📋 &#xC218;&#xC8FC; &#xAD00;&#xB9AC;</h2>
         <button
           @click="showCompleted = !showCompleted"
           class="btn btn-secondary"
@@ -898,7 +898,7 @@ const deletePurchaseBatch = async (batchId) => {
 
       <button @click="createOrder"
         class="btn btn-primary">
-        주문 생성
+        &#xC218;&#xC8FC; &#xC0DD;&#xC131;
       </button>
       <button @click="openQuoteModal"
         class="btn btn-secondary">
@@ -917,10 +917,10 @@ const deletePurchaseBatch = async (batchId) => {
 
         <thead class="table-head">
           <tr>
-            <th class="p-3">ID</th>
-            <th class="p-3">제품</th>
+            <th class="p-3">구품번</th>
+            <th class="p-3">신품번</th>
             <th class="p-3">수량</th>
-            <th class="p-3">회사</th>
+            <th class="p-3">업체</th>
             <th class="p-3">상태</th>
             <th class="p-3">작업</th>
           </tr>
@@ -929,14 +929,8 @@ const deletePurchaseBatch = async (batchId) => {
         <tbody>
           <tr v-for="o in visibleOrders" :key="o.id" class="border-t">
 
-            <td class="p-3">{{ o.id }}</td>
-
-            <td class="p-3">
-              {{ o.product_name }}
-              <div class="text-xs text-gray-400">
-                {{ o.product_code }}
-              </div>
-            </td>
+            <td class="p-3 font-medium">{{ o.old_code || "-" }}</td>
+            <td class="p-3">{{ o.new_code || o.product_code || "-" }}</td>
 
             <td class="p-3">{{ o.quantity }}</td>
             <td class="p-3">{{ o.company }}</td>

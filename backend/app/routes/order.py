@@ -9,6 +9,16 @@ from email.mime.text import MIMEText
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
+def _is_finished_product(db: Session, product) -> bool:
+    # Consider FINISHED if explicitly typed, or if BOM rows exist (legacy support)
+    if not product:
+        return False
+    if (getattr(product, "type", "") or "").strip().upper() == "FINISHED":
+        return True
+    bom = db.query(models.BOM).filter(models.BOM.parent_code == product.new_code).first()
+    return bom is not None
+
+
 # ⭐ 주문 생성 (alias + 우리품번 + 검증 포함)
 @router.post("/")
 def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
@@ -17,19 +27,20 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
 
     # 신품번 우선
     product = db.query(models.Product).filter(
-        models.Product.new_code == input_code,
-        models.Product.type == "FINISHED"
+        models.Product.new_code == input_code
     ).first()
 
     # 구품번도 허용
     if not product:
         product = db.query(models.Product).filter(
-            models.Product.old_code == input_code,
-            models.Product.type == "FINISHED"
+            models.Product.old_code == input_code
         ).first()
 
     if not product:
         raise Exception("존재하지 않는 품번입니다")
+
+    if not _is_finished_product(db, product):
+        raise Exception("존재하지 않는 완제품 품번입니다")
 
     real_code = product.new_code
 
@@ -61,6 +72,8 @@ def get_orders(db: Session = Depends(get_db)):
         result.append({
             "id": o.id,
             "product_code": o.product_code,
+            "old_code": product.old_code if product else "",
+            "new_code": product.new_code if product else o.product_code,
             "product_name": product.name if product else "",
             "quantity": o.quantity,
             "company": o.company,
