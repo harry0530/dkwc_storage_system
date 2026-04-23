@@ -368,8 +368,10 @@ const createOrder = async () => {
   if (!companyName || !quantity.value) return alert("회사/수량을 입력하세요.");
 
   if (stockWarning.value) {
-    alert("재고 부족 상태입니다!");
-    return;
+    const ok = window.confirm(
+      "재고가 부족해 보입니다.\n그래도 수주를 등록할까요?\n(생산 버튼에서 재고 부족 시 막힙니다)"
+    );
+    if (!ok) return;
   }
 
   const result = resolveProduct(selectedCode.value || codeInput.value);
