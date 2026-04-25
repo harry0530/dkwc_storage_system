@@ -964,9 +964,9 @@ const deferHide = (fn) => {
     </div>
 
     <!-- BOM 등록 모달 -->
-    <div v-if="showBomModal" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div v-if="showBomModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/40" @click="showBomModal = false"></div>
-      <div class="relative bg-white w-[90vw] max-w-xl rounded-2xl shadow-xl overflow-hidden">
+      <div class="relative bg-white w-[90vw] max-w-xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden flex flex-col">
         <div class="flex items-center justify-between px-4 py-3 border-b">
           <div class="font-semibold">BOM 등록</div>
           <div class="flex items-center gap-2">
@@ -974,7 +974,7 @@ const deferHide = (fn) => {
             <button class="btn btn-primary" @click="saveBomModal">저장</button>
           </div>
         </div>
-        <div class="p-4 flex flex-col gap-3">
+        <div class="p-4 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
           <div class="relative" @click.stop>
             <input
               v-model="bomParentInput"
