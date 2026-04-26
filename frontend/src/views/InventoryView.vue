@@ -1288,12 +1288,32 @@ const refreshUpload = async () => {
 
             <template v-if="activeLocationPoint">
               <div
-                class="absolute -translate-x-1/2 -translate-y-1/2"
+                class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 :style="{ left: `${activeLocationPoint.x}%`, top: `${activeLocationPoint.y}%` }"
+                aria-hidden="true"
               >
                 <div class="relative">
-                  <div class="absolute inset-0 rounded-full bg-black/30 blur-[1px]"></div>
-                  <div class="w-4 h-4 rounded-full bg-black border border-white shadow"></div>
+                  <!-- Arrow pointer -->
+                  <div
+                    class="absolute left-1/2 -translate-x-1/2 -top-5 w-0 h-0"
+                    style="border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 14px solid #0f172a;"
+                  ></div>
+                  <div
+                    class="absolute left-1/2 -translate-x-1/2 -top-6 w-0 h-0"
+                    style="border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 16px solid white;"
+                  ></div>
+
+                  <!-- Pulse ring -->
+                  <div class="absolute inset-0 rounded-full bg-black/25 blur-[1px]"></div>
+                  <div class="absolute inset-0 rounded-full bg-slate-900/15 animate-ping"></div>
+
+                  <!-- Dot -->
+                  <div class="w-6 h-6 rounded-full bg-slate-900 border-2 border-white shadow-lg"></div>
+
+                  <!-- Label -->
+                  <div class="absolute left-1/2 -translate-x-1/2 top-7 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/95 border border-slate-200 shadow">
+                    {{ mapLocationCode }}
+                  </div>
                 </div>
               </div>
             </template>
