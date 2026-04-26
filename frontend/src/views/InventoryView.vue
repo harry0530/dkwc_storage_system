@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import api from "../api";
 import * as XLSX from "xlsx";
+import factoryLayoutUrl from "../assets/factory_layout.png";
 
 const inventory = ref([]);
 const products = ref([]);
@@ -13,6 +14,8 @@ const typeFilter = ref("PART");
 const showAllPartsModal = ref(false);
 const showPartsManageModal = ref(false);
 const partsModalTab = ref("register");
+const showLocationMapModal = ref(false);
+const mapLocationCode = ref("");
 
 // 입고
 const stockInCode = ref("");
@@ -67,6 +70,51 @@ const searchPartLast = ref("S");
 // 로그
 const selectedProduct = ref("");
 const productLogs = ref([]);
+
+const normalizeLocationCode = (value) =>
+  (value || "").toString().trim().toUpperCase();
+
+// 배치도 좌표는 이미지 기준 비율(%)로 저장해서 화면 크기가 달라도 위치가 맞게 한다.
+// 필요하면 나중에 "좌표 편집 모드"로 정확도를 더 올릴 수 있음.
+const LOCATION_POINTS = {
+  "A-01": { x: 72.5, y: 18.5 },
+  "A-02": { x: 19.5, y: 25.0 },
+  "A-03": { x: 96.5, y: 20.0 },
+  "A-04": { x: 25.5, y: 28.0 },
+  "A-05": { x: 44.5, y: 28.0 },
+  "A-06": { x: 78.5, y: 33.0 },
+  "A-07": { x: 90.0, y: 31.0 },
+
+  "B-01": { x: 12.5, y: 54.0 },
+  "B-02": { x: 12.5, y: 73.0 },
+  "B-03": { x: 20.0, y: 56.0 },
+
+  "C-01": { x: 27.0, y: 70.5 },
+  "C-02": { x: 40.0, y: 66.5 },
+  "C-03": { x: 43.0, y: 85.0 },
+  "C-04": { x: 52.5, y: 77.5 },
+  "C-05": { x: 73.0, y: 66.5 },
+  "C-06": { x: 69.0, y: 86.0 },
+  "C-07": { x: 82.0, y: 86.0 },
+  "C-08": { x: 93.5, y: 77.5 }
+};
+
+const openLocationMap = (locationCode) => {
+  const code = normalizeLocationCode(locationCode);
+  if (!code) return;
+  mapLocationCode.value = code;
+  showLocationMapModal.value = true;
+};
+
+const closeLocationMap = () => {
+  showLocationMapModal.value = false;
+  mapLocationCode.value = "";
+};
+
+const activeLocationPoint = computed(() => {
+  const code = normalizeLocationCode(mapLocationCode.value);
+  return LOCATION_POINTS[code] || null;
+});
 
 // =====================
 // 데이터 로드
@@ -1182,7 +1230,17 @@ const refreshUpload = async () => {
                 <td class="px-2 py-2 text-center">{{ item.plating || "-" }}</td>
                 <td class="p-2">{{ item.quantity }}</td>
                 <td class="p-2">{{ item.min_stock }}</td>
-                <td class="p-2">{{ item.location || "-" }}</td>
+                <td class="p-2">
+                  <button
+                    v-if="item.location"
+                    class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
+                    @click.stop="openLocationMap(item.location)"
+                    :title="`배치도에서 ${item.location} 위치 보기`"
+                  >
+                    {{ item.location }}
+                  </button>
+                  <span v-else>-</span>
+                </td>
                 <td class="p-2">{{ getCompanyName(item.supplier_company_id) }}</td>
                 <td class="p-2">
                   <div class="flex gap-2">
@@ -1206,6 +1264,49 @@ const refreshUpload = async () => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 배치도 위치 모달 -->
+    <div v-if="showLocationMapModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="closeLocationMap"></div>
+      <div class="relative bg-white w-[95vw] max-w-6xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b">
+          <div class="font-semibold">
+            📍 공장 배치도 ({{ mapLocationCode || "-" }})
+          </div>
+          <button class="btn btn-secondary" @click="closeLocationMap">닫기</button>
+        </div>
+        <div class="p-4 overflow-auto max-h-[82vh]">
+          <div class="relative w-full">
+            <img
+              :src="factoryLayoutUrl"
+              alt="공장 배치도"
+              class="w-full h-auto block select-none"
+            />
+
+            <template v-if="activeLocationPoint">
+              <div
+                class="absolute -translate-x-1/2 -translate-y-1/2"
+                :style="{ left: `${activeLocationPoint.x}%`, top: `${activeLocationPoint.y}%` }"
+              >
+                <div class="relative">
+                  <div class="absolute inset-0 rounded-full bg-black/30 blur-[1px]"></div>
+                  <div class="w-4 h-4 rounded-full bg-black border border-white shadow"></div>
+                </div>
+              </div>
+            </template>
+            <div
+              v-else
+              class="absolute left-3 top-3 bg-white/90 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 shadow"
+            >
+              이 위치코드는 아직 좌표가 등록되지 않았습니다: {{ mapLocationCode || "-" }}
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500">
+            위치코드는 `A-01` ~ `C-08` 형태로 저장되어 있어야 합니다.
+          </div>
         </div>
       </div>
     </div>
@@ -1263,6 +1364,15 @@ const refreshUpload = async () => {
           <span>보관위치</span>
           <input v-model="editLocation" class="input w-32" />
         </label>
+        <button
+          class="btn btn-secondary h-9 px-3"
+          @click="openLocationMap(editLocation)"
+          :disabled="!editLocation"
+          :class="!editLocation ? 'opacity-50 cursor-not-allowed' : ''"
+          title="배치도에서 보관위치 표시"
+        >
+          배치도
+        </button>
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>발주처</span>
           <select v-model="editSupplierCompanyId" class="input w-40">
@@ -1386,7 +1496,17 @@ const refreshUpload = async () => {
 
             <td class="p-3">{{ item.min_stock }}</td>
 
-            <td class="p-3">{{ item.location || "-" }}</td>
+            <td class="p-3">
+              <button
+                v-if="item.location"
+                class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
+                @click.stop="openLocationMap(item.location)"
+                :title="`배치도에서 ${item.location} 위치 보기`"
+              >
+                {{ item.location }}
+              </button>
+              <span v-else>-</span>
+            </td>
 
             <td class="p-3">{{ getCompanyName(item.supplier_company_id) }}</td>
 
