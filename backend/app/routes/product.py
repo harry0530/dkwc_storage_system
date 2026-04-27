@@ -5,6 +5,7 @@ from io import BytesIO
 import openpyxl
 from app.database import get_db
 from app import models, schemas
+import re
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -213,6 +214,22 @@ def _generate_auto_finished_code(db: Session, reserved_codes: set[str]):
     return next_code
 
 
+def _normalize_location_code(value: str) -> str:
+    raw = (value or "").strip().upper()
+    if not raw:
+        return ""
+
+    m = re.match(r"^([A-Z])\s*-\s*([0-9]{1,3})$", raw)
+    if m:
+        zone = m.group(1)
+        num = m.group(2)
+        if len(num) == 1:
+            num = f"0{num}"
+        return f"{zone}-{num}"
+
+    return re.sub(r"\s+", "", raw)
+
+
 def _normalize_product_fields(
     product_type: str,
     *,
@@ -241,7 +258,7 @@ def _normalize_product_fields(
         "welding": (welding or "").strip(),
         "plating": (plating or "").strip(),
         "quantity": quantity or 0,
-        "location": (location or "").strip(),
+        "location": _normalize_location_code(location or ""),
         "min_stock": min_stock or 0,
         "supplier_company_id": supplier_company_id,
     }

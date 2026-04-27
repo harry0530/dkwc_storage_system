@@ -215,7 +215,7 @@ const loadInventory = async () => {
     name: item.name || "",
     material: item.material || "",
     spec: item.spec || "",
-    location: item.location || "",
+    location: normalizeLocationCode(item.location || ""),
     type: (item.type || "PART").toString().toUpperCase()
   }));
 };
@@ -235,7 +235,8 @@ const loadProducts = async () => {
     ...item,
     code: item.new_code || item.code || "",
     drawing_number: item.drawing_number || "",
-    old_code: item.old_code || ""
+    old_code: item.old_code || "",
+    location: normalizeLocationCode(item.location || "")
   }));
 };
 
