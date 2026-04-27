@@ -21,6 +21,10 @@ const mapZoom = ref(1);
 const mapEditMode = ref(false);
 const mapPendingPoint = ref(null); // { x: number, y: number } in %
 const mapHighlightTone = ref("warn"); // warn | danger
+const mapImageUrl = ref("");
+const mapImageLoading = ref(false);
+const mapImageError = ref("");
+const mapImageObjectUrl = ref("");
 
 // 입고
 const stockInCode = ref("");
@@ -159,6 +163,35 @@ const readDownloadError = async (err) => {
   return data?.detail || "";
 };
 
+const clearMapImageUrl = () => {
+  if (mapImageObjectUrl.value) {
+    window.URL.revokeObjectURL(mapImageObjectUrl.value);
+  }
+  mapImageObjectUrl.value = "";
+  mapImageUrl.value = "";
+};
+
+const loadLocationMapImage = async (code, danger) => {
+  clearMapImageUrl();
+  mapImageLoading.value = true;
+  mapImageError.value = "";
+
+  try {
+    const res = await api.get(`/inventory/location-map-image/${encodeURIComponent(code)}`, {
+      params: { danger },
+      responseType: "blob"
+    });
+    const url = window.URL.createObjectURL(res.data);
+    mapImageObjectUrl.value = url;
+    mapImageUrl.value = url;
+  } catch (err) {
+    const detail = await readDownloadError(err);
+    mapImageError.value = detail || `${code} 위치가 표시된 배치도 이미지를 만들지 못했습니다.`;
+  } finally {
+    mapImageLoading.value = false;
+  }
+};
+
 const openLocationMap = async (locationCode, meta = null) => {
   const code = normalizeLocationCode(locationCode);
   if (!code) return;
@@ -166,6 +199,20 @@ const openLocationMap = async (locationCode, meta = null) => {
   const qty = meta && meta.quantity !== undefined ? Number(meta.quantity) : NaN;
   const min = meta && meta.min_stock !== undefined ? Number(meta.min_stock) : NaN;
   const danger = Number.isFinite(qty) && Number.isFinite(min) && qty <= min;
+
+  mapLocationCode.value = code;
+  mapZoom.value = 1;
+  mapEditMode.value = false;
+  mapPendingPoint.value = null;
+  mapHighlightTone.value = danger ? "danger" : "warn";
+  showLocationMapModal.value = true;
+  await loadLocationMapImage(code, danger);
+};
+
+const downloadLocationMapExcel = async () => {
+  const code = normalizeLocationCode(mapLocationCode.value);
+  if (!code) return;
+  const danger = mapHighlightTone.value === "danger";
 
   try {
     const res = await api.get(`/inventory/location-map/${encodeURIComponent(code)}`, {
@@ -185,6 +232,9 @@ const closeLocationMap = () => {
   mapZoom.value = 1;
   mapEditMode.value = false;
   mapPendingPoint.value = null;
+  mapImageLoading.value = false;
+  mapImageError.value = "";
+  clearMapImageUrl();
 };
 
 const activeLocationPoint = computed(() => {
@@ -813,6 +863,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("click", handleGlobalClick);
+  clearMapImageUrl();
 });
 
 const searchPartCode = computed(
@@ -1388,7 +1439,7 @@ const refreshUpload = async () => {
                     v-if="item.location"
                     class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
                     @click.stop="openLocationMap(item.location, item)"
-                    :title="`배치도 엑셀에서 ${item.location} 위치 표시`"
+                    :title="`배치도에서 ${item.location} 위치 바로 보기`"
                   >
                     {{ item.location }}
                   </button>
@@ -1431,6 +1482,7 @@ const refreshUpload = async () => {
           </div>
           <div class="flex items-center gap-2">
             <button
+              v-if="false"
               class="btn btn-secondary h-8 px-2 text-xs"
               @click="toggleMapEditMode"
               :class="mapEditMode ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : ''"
@@ -1447,6 +1499,9 @@ const refreshUpload = async () => {
               title="클릭한 좌표를 저장"
             >
               좌표저장
+            </button>
+            <button class="btn btn-primary h-8 px-3 text-xs" @click="downloadLocationMapExcel">
+              엑셀 다운로드
             </button>
             <button class="btn btn-secondary h-8 px-2 text-xs" @click="zoomOutMap">-</button>
             <input
@@ -1466,15 +1521,15 @@ const refreshUpload = async () => {
         <div class="p-4 overflow-auto max-h-[82vh]">
           <div class="relative inline-block origin-top-left" :style="{ transform: `scale(${mapZoom})` }">
             <img
-              :src="factoryLayoutUrl"
+              :src="mapImageUrl || factoryLayoutUrl"
               alt="공장 배치도"
               class="w-full h-auto block select-none rounded-xl border border-slate-200"
-              :class="mapEditMode ? 'cursor-crosshair ring-2 ring-slate-900/40' : ''"
+              :class="mapImageLoading ? 'opacity-50' : ''"
               draggable="false"
               @click.stop="onMapClick"
             />
 
-            <template v-if="adjustedLocationBox">
+            <template v-if="false && adjustedLocationBox">
               <div
                 class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 :style="{
@@ -1492,7 +1547,7 @@ const refreshUpload = async () => {
               </div>
             </template>
 
-            <template v-else-if="displayLocationPoint">
+            <template v-else-if="false && displayLocationPoint">
               <div
                 class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 :style="{ left: `${displayLocationPoint.x}%`, top: `${displayLocationPoint.y}%` }"
@@ -1524,16 +1579,16 @@ const refreshUpload = async () => {
               </div>
             </template>
             <div
-              v-else
+              v-if="mapImageLoading || mapImageError"
               class="absolute left-3 top-3 bg-white/90 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 shadow"
             >
-              이 위치코드는 아직 좌표가 등록되지 않았습니다: {{ mapLocationCode || "-" }}
+              {{ mapImageLoading ? "배치도 이미지를 만드는 중입니다..." : mapImageError }}
             </div>
           </div>
           <div class="mt-3 text-xs text-slate-500">
-            위치코드는 `A-01`, `B-03`, `C-11` 같은 형태로 저장되어 있어야 합니다. 좌표가 없으면 `좌표편집`을 눌러 배치도에서 클릭 후 `좌표저장`하면 됩니다.
+            이미지는 엑셀 셀 기준으로 생성됩니다. 필요하면 상단의 엑셀 다운로드 버튼으로 파일도 받을 수 있습니다.
           </div>
-          <div v-if="mapEditMode" class="mt-2 text-xs text-slate-600">
+          <div v-if="false && mapEditMode" class="mt-2 text-xs text-slate-600">
             편집 모드: 배치도에서 위치를 클릭하면 마커가 이동합니다. 저장하려면 `좌표저장`을 누르세요.
           </div>
         </div>
@@ -1598,9 +1653,9 @@ const refreshUpload = async () => {
           @click="openLocationMap(editLocation, { quantity: editQuantity, min_stock: editMinStock })"
           :disabled="!editLocation"
           :class="!editLocation ? 'opacity-50 cursor-not-allowed' : ''"
-          title="배치도 엑셀에서 보관위치 표시"
+          title="배치도에서 보관위치 바로 보기"
         >
-          배치도 엑셀
+          배치도 보기
         </button>
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>발주처</span>
@@ -1730,7 +1785,7 @@ const refreshUpload = async () => {
                 v-if="item.location"
                 class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
                 @click.stop="openLocationMap(item.location, item)"
-                :title="`배치도 엑셀에서 ${item.location} 위치 표시`"
+                :title="`배치도에서 ${item.location} 위치 바로 보기`"
               >
                 {{ item.location }}
               </button>
