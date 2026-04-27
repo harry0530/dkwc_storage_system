@@ -169,7 +169,7 @@ const activeLocationBox = computed(() => {
 });
 
 // Render calibration: use the detected cell center, then fill inward from it.
-const BOX_ADJUST = { centerDxByW: 0.2, centerDyByH: 0.42, scaleW: 0.72, scaleH: 0.68 };
+const BOX_ADJUST = { centerDxByW: 0.2, centerDyByH: 0.52, scaleW: 0.72, scaleH: 0.68 };
 const adjustedLocationBox = computed(() => {
   const b = activeLocationBox.value;
   if (!b) return null;
