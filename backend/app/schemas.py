@@ -1,21 +1,22 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class ProductCreate(BaseModel):
     code: str  # new_code
     name: str
     type: str
-    location: str | None = ""
+    location: Optional[str] = ""
     min_stock: int
-    old_code: str | None = ""
-    drawing_number: str | None = ""
-    material: str | None = ""
-    spec: str | None = ""
-    heat_treatment: str | None = ""
-    welding: str | None = ""
-    plating: str | None = ""
-    supplier_company_id: int | None = None
-    quantity: int | None = 0
+    old_code: Optional[str] = ""
+    drawing_number: Optional[str] = ""
+    material: Optional[str] = ""
+    spec: Optional[str] = ""
+    heat_treatment: Optional[str] = ""
+    welding: Optional[str] = ""
+    plating: Optional[str] = ""
+    supplier_company_id: Optional[int] = None
+    quantity: Optional[int] = 0
 
 
 class BOMCreate(BaseModel):
@@ -32,7 +33,7 @@ class BOMUpdate(BaseModel):
 class InventoryCreate(BaseModel):
     product_code: str
     quantity: int
-    reason: str | None = None
+    reason: Optional[str] = None
 
 
 class OrderCreate(BaseModel):
@@ -57,9 +58,9 @@ class PurchaseOrderItemCreate(BaseModel):
 
 
 class PurchaseOrderBatchCreate(BaseModel):
-    company: str | None = None
+    company: Optional[str] = None
     items: list[PurchaseOrderItemCreate]
-    due_date: str | None = None  # YYYY-MM-DD
+    due_date: Optional[str] = None  # YYYY-MM-DD
 
 
 class PurchaseOrderReceiptOut(BaseModel):
@@ -70,11 +71,11 @@ class PurchaseOrderReceiptOut(BaseModel):
 
 
 class PurchaseOrderUpdate(BaseModel):
-    product_code: str | None = None
-    quantity: int | None = None
-    company: str | None = None
+    product_code: Optional[str] = None
+    quantity: Optional[int] = None
+    company: Optional[str] = None
 
 
 class PurchaseReceiptUpdate(BaseModel):
-    quantity: int | None = None
-    created_at: str | None = None
+    quantity: Optional[int] = None
+    created_at: Optional[str] = None

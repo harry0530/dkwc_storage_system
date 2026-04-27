@@ -34,7 +34,7 @@ def _merge_content_types(
     *,
     out_xml: bytes,
     template_xml: bytes,
-    extra_overrides: dict[str, str] | None = None,
+    extra_overrides: Optional[dict[str, str]] = None,
 ) -> bytes:
     # openpyxl drops drawings/media parts, which also removes Content_Types entries.
     # We merge template entries back so Office can load the embedded images/VML.
@@ -311,7 +311,7 @@ def _find_cell_by_normalized(ws, normalized_text: str):
     return None
 
 
-def _write_purchase_dates(ws, order_date: datetime, due_date: date | None = None):
+def _write_purchase_dates(ws, order_date: datetime, due_date: Optional[date] = None):
     # Template labels live on row 4: "발 주 일 :" at A4 and "납  기  일 :" at D4.
     # We write values to the immediate next cells (B4 and E4).
     order_label = _find_cell_by_normalized(ws, "발주일:")
@@ -347,7 +347,7 @@ def _is_finished_product(db: Session, product: Optional[models.Product]) -> bool
     return bool(_get_bom_children(db, product.new_code))
 
 
-def _get_company_name(db: Session, company_id: int | None) -> str:
+def _get_company_name(db: Session, company_id: Optional[int]) -> str:
     if not company_id:
         return ""
     c = db.query(models.Company).filter(models.Company.id == company_id).first()
@@ -358,8 +358,8 @@ def _build_row(
     *,
     part_or_finished: Optional[models.Product],
     fallback_code: str,
-    finished_qty: int | None,
-    part_qty: int | None,
+    finished_qty: Optional[int],
+    part_qty: Optional[int],
     purchase_company: str = "",
     note: str = "",
 ):
@@ -655,7 +655,7 @@ def create_purchase_batch(data: schemas.PurchaseOrderBatchCreate, db: Session = 
     if not data.items:
         raise Exception("발주 항목이 없습니다")
 
-    parsed_due: date | None = None
+    parsed_due: Optional[date] = None
     if data.due_date:
         try:
             parsed_due = date.fromisoformat(str(data.due_date).strip())

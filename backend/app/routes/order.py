@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
 from io import BytesIO
+from typing import Optional
 import openpyxl
 from openpyxl.chart import BarChart, Reference
 import os
@@ -91,7 +92,7 @@ def get_orders(db: Session = Depends(get_db)):
     return result
 
 
-def _parse_ymd(value: str | None) -> date | None:
+def _parse_ymd(value: Optional[str]) -> Optional[date]:
     text = (value or "").strip()
     if not text:
         return None
@@ -103,8 +104,8 @@ def _parse_ymd(value: str | None) -> date | None:
 
 @router.get("/summary-xlsx")
 def export_sales_summary_xlsx(
-    from_: str | None = Query(default=None, alias="from"),
-    to: str | None = Query(default=None, alias="to"),
+    from_: Optional[str] = Query(default=None, alias="from"),
+    to: Optional[str] = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
 ):
     """

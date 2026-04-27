@@ -1,9 +1,58 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, crud
+from io import BytesIO
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill
+from urllib.parse import quote
+import os
+import re
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
+
+
+FACTORY_LAYOUT_TEMPLATE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "templates",
+    "factory_layout_template.xlsx",
+)
+
+
+def _normalize_location_code(value: str) -> str:
+    raw = (value or "").strip().upper()
+    if not raw:
+        return ""
+    match = re.match(r"^([A-Z])\s*-\s*([0-9]{1,3})$", raw)
+    if match:
+        zone = match.group(1)
+        num = match.group(2)
+        if len(num) == 1:
+            num = f"0{num}"
+        return f"{zone}-{num}"
+    return re.sub(r"\s+", "", raw)
+
+
+def _find_location_cell(workbook, location_code: str):
+    target = _normalize_location_code(location_code)
+    for ws in workbook.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if _normalize_location_code(str(cell.value or "")) == target:
+                    return ws, cell
+    return None, None
+
+
+def _fill_location_cell(ws, cell, fill):
+    # Usually location codes are single cells, but this keeps merged cells safe too.
+    for merged_range in ws.merged_cells.ranges:
+        if cell.coordinate in merged_range:
+            for row in ws[merged_range.coord]:
+                for merged_cell in row:
+                    merged_cell.fill = fill
+            return
+    cell.fill = fill
 
 
 # ✅ 재고 조회 (JOIN 버전)
@@ -36,6 +85,38 @@ def get_inventory(db: Session = Depends(get_db)):
         })
 
     return result
+
+
+@router.get("/location-map/{location_code}")
+def download_location_map(location_code: str, danger: bool = False):
+    normalized_code = _normalize_location_code(location_code)
+    if not normalized_code:
+        raise HTTPException(status_code=400, detail="보관위치를 입력하세요.")
+    if not os.path.exists(FACTORY_LAYOUT_TEMPLATE):
+        raise HTTPException(status_code=500, detail="공장 배치도 템플릿을 찾을 수 없습니다.")
+
+    workbook = load_workbook(FACTORY_LAYOUT_TEMPLATE)
+    ws, cell = _find_location_cell(workbook, normalized_code)
+    if not cell:
+        raise HTTPException(status_code=404, detail=f"배치도에서 {normalized_code} 위치를 찾을 수 없습니다.")
+
+    fill_color = "F4CCCC" if danger else "FFF2CC"
+    _fill_location_cell(ws, cell, PatternFill(fill_type="solid", fgColor=fill_color))
+    workbook.active = workbook.worksheets.index(ws)
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    filename = f"factory_layout_{normalized_code}.xlsx"
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"
+    }
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 # ✅ 재고 입력 (복구됨 ⭐)

@@ -134,20 +134,49 @@ const setLocationPoint = (code, point) => {
   saveLocationPoints(next);
 };
 
-const openLocationMap = (locationCode, meta = null) => {
+const saveBlobAsFile = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+const readDownloadError = async (err) => {
+  const data = err?.response?.data;
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text();
+      const parsed = JSON.parse(text);
+      return parsed.detail || text;
+    } catch {
+      return "";
+    }
+  }
+  return data?.detail || "";
+};
+
+const openLocationMap = async (locationCode, meta = null) => {
   const code = normalizeLocationCode(locationCode);
   if (!code) return;
-  mapLocationCode.value = code;
-  mapZoom.value = 1;
-  mapEditMode.value = false;
-  mapPendingPoint.value = null;
 
   const qty = meta && meta.quantity !== undefined ? Number(meta.quantity) : NaN;
   const min = meta && meta.min_stock !== undefined ? Number(meta.min_stock) : NaN;
-  mapHighlightTone.value =
-    Number.isFinite(qty) && Number.isFinite(min) && qty <= min ? "danger" : "warn";
+  const danger = Number.isFinite(qty) && Number.isFinite(min) && qty <= min;
 
-  showLocationMapModal.value = true;
+  try {
+    const res = await api.get(`/inventory/location-map/${encodeURIComponent(code)}`, {
+      params: { danger },
+      responseType: "blob"
+    });
+    saveBlobAsFile(res.data, `factory_layout_${code}.xlsx`);
+  } catch (err) {
+    const detail = await readDownloadError(err);
+    alert(detail || `${code} 위치가 표시된 배치도 엑셀을 만들지 못했습니다.`);
+  }
 };
 
 const closeLocationMap = () => {
@@ -1359,7 +1388,7 @@ const refreshUpload = async () => {
                     v-if="item.location"
                     class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
                     @click.stop="openLocationMap(item.location, item)"
-                    :title="`배치도에서 ${item.location} 위치 보기`"
+                    :title="`배치도 엑셀에서 ${item.location} 위치 표시`"
                   >
                     {{ item.location }}
                   </button>
@@ -1569,9 +1598,9 @@ const refreshUpload = async () => {
           @click="openLocationMap(editLocation, { quantity: editQuantity, min_stock: editMinStock })"
           :disabled="!editLocation"
           :class="!editLocation ? 'opacity-50 cursor-not-allowed' : ''"
-          title="배치도에서 보관위치 표시"
+          title="배치도 엑셀에서 보관위치 표시"
         >
-          배치도
+          배치도 엑셀
         </button>
         <label class="flex flex-col gap-1 text-sm text-slate-600">
           <span>발주처</span>
@@ -1701,7 +1730,7 @@ const refreshUpload = async () => {
                 v-if="item.location"
                 class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
                 @click.stop="openLocationMap(item.location, item)"
-                :title="`배치도에서 ${item.location} 위치 보기`"
+                :title="`배치도 엑셀에서 ${item.location} 위치 표시`"
               >
                 {{ item.location }}
               </button>
