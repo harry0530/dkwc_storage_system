@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import api from "../api";
 import * as XLSX from "xlsx";
 import factoryLayoutUrl from "../assets/factory_layout.png";
+import factoryLocationBoxes from "../assets/factory_location_boxes.json";
 
 const inventory = ref([]);
 const products = ref([]);
@@ -19,6 +20,7 @@ const mapLocationCode = ref("");
 const mapZoom = ref(1);
 const mapEditMode = ref(false);
 const mapPendingPoint = ref(null); // { x: number, y: number } in %
+const mapHighlightTone = ref("warn"); // warn | danger
 
 // 입고
 const stockInCode = ref("");
@@ -132,13 +134,19 @@ const setLocationPoint = (code, point) => {
   saveLocationPoints(next);
 };
 
-const openLocationMap = (locationCode) => {
+const openLocationMap = (locationCode, meta = null) => {
   const code = normalizeLocationCode(locationCode);
   if (!code) return;
   mapLocationCode.value = code;
   mapZoom.value = 1;
   mapEditMode.value = false;
   mapPendingPoint.value = null;
+
+  const qty = meta && meta.quantity !== undefined ? Number(meta.quantity) : NaN;
+  const min = meta && meta.min_stock !== undefined ? Number(meta.min_stock) : NaN;
+  mapHighlightTone.value =
+    Number.isFinite(qty) && Number.isFinite(min) && qty <= min ? "danger" : "warn";
+
   showLocationMapModal.value = true;
 };
 
@@ -155,8 +163,27 @@ const activeLocationPoint = computed(() => {
   return locationPoints.value[code] || null;
 });
 
+const activeLocationBox = computed(() => {
+  const code = normalizeLocationCode(mapLocationCode.value);
+  return factoryLocationBoxes?.[code] || null;
+});
+
 const displayLocationPoint = computed(() => {
   return mapPendingPoint.value || activeLocationPoint.value || null;
+});
+
+const activeAnchor = computed(() => {
+  if (activeLocationBox.value) {
+    const b = activeLocationBox.value;
+    return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+  }
+  return displayLocationPoint.value;
+});
+
+const mapHighlightClass = computed(() => {
+  return mapHighlightTone.value === "danger"
+    ? "bg-red-500/30 border-red-600"
+    : "bg-yellow-300/35 border-yellow-500";
 });
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -1322,7 +1349,7 @@ const refreshUpload = async () => {
                   <button
                     v-if="item.location"
                     class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
-                    @click.stop="openLocationMap(item.location)"
+                    @click.stop="openLocationMap(item.location, item)"
                     :title="`배치도에서 ${item.location} 위치 보기`"
                   >
                     {{ item.location }}
@@ -1409,7 +1436,47 @@ const refreshUpload = async () => {
               @click.stop="onMapClick"
             />
 
-            <template v-if="displayLocationPoint">
+            <template v-if="activeLocationBox">
+              <!-- Highlight the location "cell" area -->
+              <div
+                class="absolute pointer-events-none"
+                :style="{
+                  left: `${activeLocationBox.x}%`,
+                  top: `${activeLocationBox.y}%`,
+                  width: `${activeLocationBox.w}%`,
+                  height: `${activeLocationBox.h}%`
+                }"
+                aria-hidden="true"
+              >
+                <div
+                  class="w-full h-full rounded-md border-2 shadow-sm"
+                  :class="mapHighlightClass"
+                ></div>
+              </div>
+
+              <!-- Label + arrow pointing to the highlight -->
+              <div
+                class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                :style="{ left: `${activeAnchor.x}%`, top: `${activeLocationBox.y}%` }"
+                aria-hidden="true"
+              >
+                <div class="relative">
+                  <div
+                    class="absolute left-1/2 -translate-x-1/2 -top-4 w-0 h-0"
+                    style="border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 14px solid #000000;"
+                  ></div>
+                  <div
+                    class="absolute left-1/2 -translate-x-1/2 -top-5 w-0 h-0"
+                    style="border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 16px solid white;"
+                  ></div>
+                  <div class="absolute left-1/2 -translate-x-1/2 -top-11 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/95 border border-slate-200 shadow">
+                    {{ mapLocationCode }}
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="displayLocationPoint">
               <div
                 class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 :style="{ left: `${displayLocationPoint.x}%`, top: `${displayLocationPoint.y}%` }"
@@ -1512,7 +1579,7 @@ const refreshUpload = async () => {
         </label>
         <button
           class="btn btn-secondary h-9 px-3"
-          @click="openLocationMap(editLocation)"
+          @click="openLocationMap(editLocation, { quantity: editQuantity, min_stock: editMinStock })"
           :disabled="!editLocation"
           :class="!editLocation ? 'opacity-50 cursor-not-allowed' : ''"
           title="배치도에서 보관위치 표시"
@@ -1646,7 +1713,7 @@ const refreshUpload = async () => {
               <button
                 v-if="item.location"
                 class="text-slate-900 underline underline-offset-2 hover:text-sky-700"
-                @click.stop="openLocationMap(item.location)"
+                @click.stop="openLocationMap(item.location, item)"
                 :title="`배치도에서 ${item.location} 위치 보기`"
               >
                 {{ item.location }}
