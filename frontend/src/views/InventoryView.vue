@@ -170,7 +170,7 @@ const activeLocationBox = computed(() => {
 
 // Render calibration: Excel-rendered PNG has slight vertical offset vs. viewport layout.
 // Tune these if the highlight is consistently off across many cells.
-const BOX_ADJUST = { dyByH: 0.35, dhByH: 0.0, dxByW: 0.0, dwByW: 0.0 };
+const BOX_ADJUST = { dyByH: 0.52, dhByH: -0.14, dxByW: 0.04, dwByW: -0.08 };
 const adjustedLocationBox = computed(() => {
   const b = activeLocationBox.value;
   if (!b) return null;
@@ -200,8 +200,8 @@ const activeAnchor = computed(() => {
 
 const mapHighlightClass = computed(() => {
   return mapHighlightTone.value === "danger"
-    ? "bg-red-500/30 border-red-600"
-    : "bg-yellow-300/35 border-yellow-500";
+    ? "bg-red-500/35 ring-2 ring-inset ring-red-600/70"
+    : "bg-yellow-300/45 ring-2 ring-inset ring-yellow-500/70";
 });
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -1467,7 +1467,7 @@ const refreshUpload = async () => {
                 aria-hidden="true"
               >
                 <div
-                  class="w-full h-full rounded-md border-2 shadow-sm"
+                  class="w-full h-full shadow-sm"
                   :class="mapHighlightClass"
                 ></div>
               </div>
