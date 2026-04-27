@@ -90,8 +90,8 @@ const normalizeLocationCode = (value) => {
 
 // 배치도 좌표는 이미지 기준 비율(%)로 저장해서 화면 크기가 달라도 위치가 맞게 한다.
 // 필요하면 나중에 "좌표 편집 모드"로 정확도를 더 올릴 수 있음.
-// v3: factory_layout.png regenerated from final PDF layout.
-const LOCATION_STORAGE_KEY = "factoryLocationPoints.v3";
+// v4: factory_layout.png rendered from Excel source (canonical labels like A-01).
+const LOCATION_STORAGE_KEY = "factoryLocationPoints.v4";
 const DEFAULT_LOCATION_POINTS = {};
 
 const loadSavedLocationPoints = () => {
@@ -450,7 +450,8 @@ const saveEdit = async () => {
   });
 
   cancelEdit();
-  loadInventory();
+  await loadInventory();
+  await loadProducts();
 };
 
 const changeProductCode = async () => {
