@@ -170,7 +170,7 @@ const activeLocationBox = computed(() => {
 
 // Render calibration: Excel-rendered PNG has slight vertical offset vs. viewport layout.
 // Tune these if the highlight is consistently off across many cells.
-const BOX_ADJUST = { dyByH: 0.52, dhByH: -0.14, dxByW: 0.04, dwByW: -0.08 };
+const BOX_ADJUST = { dyByH: 0.56, dhByH: -0.22, dxByW: 0.1, dwByW: -0.2 };
 const adjustedLocationBox = computed(() => {
   const b = activeLocationBox.value;
   if (!b) return null;
@@ -190,18 +190,10 @@ const displayLocationPoint = computed(() => {
   return mapPendingPoint.value || activeLocationPoint.value || null;
 });
 
-const activeAnchor = computed(() => {
-  if (adjustedLocationBox.value) {
-    const b = adjustedLocationBox.value;
-    return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
-  }
-  return displayLocationPoint.value;
-});
-
 const mapHighlightClass = computed(() => {
   return mapHighlightTone.value === "danger"
-    ? "bg-red-500/35 ring-2 ring-inset ring-red-600/70"
-    : "bg-yellow-300/45 ring-2 ring-inset ring-yellow-500/70";
+    ? "bg-red-500/40"
+    : "bg-yellow-300/50";
 });
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -1455,7 +1447,6 @@ const refreshUpload = async () => {
             />
 
             <template v-if="adjustedLocationBox">
-              <!-- Highlight the location "cell" area -->
               <div
                 class="absolute pointer-events-none"
                 :style="{
@@ -1467,30 +1458,9 @@ const refreshUpload = async () => {
                 aria-hidden="true"
               >
                 <div
-                  class="w-full h-full shadow-sm"
+                  class="w-full h-full"
                   :class="mapHighlightClass"
                 ></div>
-              </div>
-
-              <!-- Label + arrow pointing to the highlight -->
-              <div
-                class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                :style="{ left: `${activeAnchor.x}%`, top: `${activeAnchor.y}%` }"
-                aria-hidden="true"
-              >
-                <div class="relative">
-                  <div
-                    class="absolute left-1/2 -translate-x-1/2 -top-4 w-0 h-0"
-                    style="border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 14px solid #000000;"
-                  ></div>
-                  <div
-                    class="absolute left-1/2 -translate-x-1/2 -top-5 w-0 h-0"
-                    style="border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 16px solid white;"
-                  ></div>
-                  <div class="absolute left-1/2 -translate-x-1/2 -top-11 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/95 border border-slate-200 shadow">
-                    {{ mapLocationCode }}
-                  </div>
-                </div>
               </div>
             </template>
 
