@@ -168,13 +168,31 @@ const activeLocationBox = computed(() => {
   return factoryLocationBoxes?.[code] || null;
 });
 
+// Render calibration: Excel-rendered PNG has slight vertical offset vs. viewport layout.
+// Tune these if the highlight is consistently off across many cells.
+const BOX_ADJUST = { dyByH: 0.35, dhByH: 0.0, dxByW: 0.0, dwByW: 0.0 };
+const adjustedLocationBox = computed(() => {
+  const b = activeLocationBox.value;
+  if (!b) return null;
+  const dx = (Number(b.w) || 0) * BOX_ADJUST.dxByW;
+  const dy = (Number(b.h) || 0) * BOX_ADJUST.dyByH;
+  const dw = (Number(b.w) || 0) * BOX_ADJUST.dwByW;
+  const dh = (Number(b.h) || 0) * BOX_ADJUST.dhByH;
+  return {
+    x: clamp((Number(b.x) || 0) + dx, 0, 100),
+    y: clamp((Number(b.y) || 0) + dy, 0, 100),
+    w: clamp((Number(b.w) || 0) + dw, 0, 100),
+    h: clamp((Number(b.h) || 0) + dh, 0, 100)
+  };
+});
+
 const displayLocationPoint = computed(() => {
   return mapPendingPoint.value || activeLocationPoint.value || null;
 });
 
 const activeAnchor = computed(() => {
-  if (activeLocationBox.value) {
-    const b = activeLocationBox.value;
+  if (adjustedLocationBox.value) {
+    const b = adjustedLocationBox.value;
     return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
   }
   return displayLocationPoint.value;
@@ -1436,15 +1454,15 @@ const refreshUpload = async () => {
               @click.stop="onMapClick"
             />
 
-            <template v-if="activeLocationBox">
+            <template v-if="adjustedLocationBox">
               <!-- Highlight the location "cell" area -->
               <div
                 class="absolute pointer-events-none"
                 :style="{
-                  left: `${activeLocationBox.x}%`,
-                  top: `${activeLocationBox.y}%`,
-                  width: `${activeLocationBox.w}%`,
-                  height: `${activeLocationBox.h}%`
+                  left: `${adjustedLocationBox.x}%`,
+                  top: `${adjustedLocationBox.y}%`,
+                  width: `${adjustedLocationBox.w}%`,
+                  height: `${adjustedLocationBox.h}%`
                 }"
                 aria-hidden="true"
               >
@@ -1457,7 +1475,7 @@ const refreshUpload = async () => {
               <!-- Label + arrow pointing to the highlight -->
               <div
                 class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                :style="{ left: `${activeAnchor.x}%`, top: `${activeLocationBox.y}%` }"
+                :style="{ left: `${activeAnchor.x}%`, top: `${activeAnchor.y}%` }"
                 aria-hidden="true"
               >
                 <div class="relative">
