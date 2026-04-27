@@ -168,21 +168,20 @@ const activeLocationBox = computed(() => {
   return factoryLocationBoxes?.[code] || null;
 });
 
-// Render calibration: Excel-rendered PNG has slight vertical offset vs. viewport layout.
-// Tune these if the highlight is consistently off across many cells.
-const BOX_ADJUST = { dyByH: 0.56, dhByH: -0.22, dxByW: 0.1, dwByW: -0.2 };
+// Render calibration: use the detected cell center, then fill inward from it.
+const BOX_ADJUST = { centerDxByW: 0.12, centerDyByH: 0.08, scaleW: 0.72, scaleH: 0.68 };
 const adjustedLocationBox = computed(() => {
   const b = activeLocationBox.value;
   if (!b) return null;
-  const dx = (Number(b.w) || 0) * BOX_ADJUST.dxByW;
-  const dy = (Number(b.h) || 0) * BOX_ADJUST.dyByH;
-  const dw = (Number(b.w) || 0) * BOX_ADJUST.dwByW;
-  const dh = (Number(b.h) || 0) * BOX_ADJUST.dhByH;
+  const x = Number(b.x) || 0;
+  const y = Number(b.y) || 0;
+  const w = Number(b.w) || 0;
+  const h = Number(b.h) || 0;
   return {
-    x: clamp((Number(b.x) || 0) + dx, 0, 100),
-    y: clamp((Number(b.y) || 0) + dy, 0, 100),
-    w: clamp((Number(b.w) || 0) + dw, 0, 100),
-    h: clamp((Number(b.h) || 0) + dh, 0, 100)
+    cx: clamp(x + w / 2 + w * BOX_ADJUST.centerDxByW, 0, 100),
+    cy: clamp(y + h / 2 + h * BOX_ADJUST.centerDyByH, 0, 100),
+    w: clamp(w * BOX_ADJUST.scaleW, 0, 100),
+    h: clamp(h * BOX_ADJUST.scaleH, 0, 100)
   };
 });
 
@@ -1448,10 +1447,10 @@ const refreshUpload = async () => {
 
             <template v-if="adjustedLocationBox">
               <div
-                class="absolute pointer-events-none"
+                class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 :style="{
-                  left: `${adjustedLocationBox.x}%`,
-                  top: `${adjustedLocationBox.y}%`,
+                  left: `${adjustedLocationBox.cx}%`,
+                  top: `${adjustedLocationBox.cy}%`,
                   width: `${adjustedLocationBox.w}%`,
                   height: `${adjustedLocationBox.h}%`
                 }"
