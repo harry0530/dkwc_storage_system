@@ -16,6 +16,9 @@ const showPartsManageModal = ref(false);
 const partsModalTab = ref("register");
 const showLocationMapModal = ref(false);
 const mapLocationCode = ref("");
+const mapZoom = ref(1);
+const mapEditMode = ref(false);
+const mapPendingPoint = ref(null); // { x: number, y: number } in %
 
 // 입고
 const stockInCode = ref("");
@@ -71,50 +74,133 @@ const searchPartLast = ref("S");
 const selectedProduct = ref("");
 const productLogs = ref([]);
 
-const normalizeLocationCode = (value) =>
-  (value || "").toString().trim().toUpperCase();
+const normalizeLocationCode = (value) => {
+  const raw = (value || "").toString().trim().toUpperCase();
+  if (!raw) return "";
+
+  // Accept both "A-1" and "A-01" forms (pad to 2 digits).
+  const m = raw.match(/^([A-Z])\s*-\s*([0-9]{1,2})$/);
+  if (m) {
+    return `${m[1]}-${String(m[2]).padStart(2, "0")}`;
+  }
+
+  // Fallback: remove extra spaces only.
+  return raw.replace(/\s+/g, "");
+};
 
 // 배치도 좌표는 이미지 기준 비율(%)로 저장해서 화면 크기가 달라도 위치가 맞게 한다.
 // 필요하면 나중에 "좌표 편집 모드"로 정확도를 더 올릴 수 있음.
-const LOCATION_POINTS = {
-  "A-01": { x: 72.5, y: 18.5 },
-  "A-02": { x: 19.5, y: 25.0 },
-  "A-03": { x: 96.5, y: 20.0 },
-  "A-04": { x: 25.5, y: 28.0 },
-  "A-05": { x: 44.5, y: 28.0 },
-  "A-06": { x: 78.5, y: 33.0 },
-  "A-07": { x: 90.0, y: 31.0 },
+// v3: factory_layout.png regenerated from final PDF layout.
+const LOCATION_STORAGE_KEY = "factoryLocationPoints.v3";
+const DEFAULT_LOCATION_POINTS = {};
 
-  "B-01": { x: 12.5, y: 54.0 },
-  "B-02": { x: 12.5, y: 73.0 },
-  "B-03": { x: 20.0, y: 56.0 },
+const loadSavedLocationPoints = () => {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
-  "C-01": { x: 27.0, y: 70.5 },
-  "C-02": { x: 40.0, y: 66.5 },
-  "C-03": { x: 43.0, y: 85.0 },
-  "C-04": { x: 52.5, y: 77.5 },
-  "C-05": { x: 73.0, y: 66.5 },
-  "C-06": { x: 69.0, y: 86.0 },
-  "C-07": { x: 82.0, y: 86.0 },
-  "C-08": { x: 93.5, y: 77.5 }
+const saveLocationPoints = (points) => {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(points));
+  } catch {
+    // ignore
+  }
+};
+
+const locationPoints = ref({
+  ...DEFAULT_LOCATION_POINTS,
+  ...(loadSavedLocationPoints() || {})
+});
+
+const setLocationPoint = (code, point) => {
+  const key = normalizeLocationCode(code);
+  if (!key || !point) return;
+  const next = {
+    ...locationPoints.value,
+    [key]: { x: Number(point.x), y: Number(point.y) }
+  };
+  locationPoints.value = next;
+  saveLocationPoints(next);
 };
 
 const openLocationMap = (locationCode) => {
   const code = normalizeLocationCode(locationCode);
   if (!code) return;
   mapLocationCode.value = code;
+  mapZoom.value = 1;
+  mapEditMode.value = false;
+  mapPendingPoint.value = null;
   showLocationMapModal.value = true;
 };
 
 const closeLocationMap = () => {
   showLocationMapModal.value = false;
   mapLocationCode.value = "";
+  mapZoom.value = 1;
+  mapEditMode.value = false;
+  mapPendingPoint.value = null;
 };
 
 const activeLocationPoint = computed(() => {
   const code = normalizeLocationCode(mapLocationCode.value);
-  return LOCATION_POINTS[code] || null;
+  return locationPoints.value[code] || null;
 });
+
+const displayLocationPoint = computed(() => {
+  return mapPendingPoint.value || activeLocationPoint.value || null;
+});
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const zoomInMap = () => {
+  mapZoom.value = clamp(Number(mapZoom.value || 1) + 0.1, 0.6, 2.6);
+};
+const zoomOutMap = () => {
+  mapZoom.value = clamp(Number(mapZoom.value || 1) - 0.1, 0.6, 2.6);
+};
+const resetMapZoom = () => {
+  mapZoom.value = 1;
+};
+
+const toggleMapEditMode = () => {
+  mapEditMode.value = !mapEditMode.value;
+  mapPendingPoint.value = null;
+};
+
+const onMapClick = (event) => {
+  if (!mapEditMode.value) return;
+  const code = normalizeLocationCode(mapLocationCode.value);
+  if (!code) return;
+
+  const target = event?.currentTarget;
+  if (!target || typeof target.getBoundingClientRect !== "function") return;
+
+  const rect = target.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 100;
+  const y = ((event.clientY - rect.top) / rect.height) * 100;
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  mapPendingPoint.value = {
+    x: clamp(x, 0, 100),
+    y: clamp(y, 0, 100)
+  };
+};
+
+const savePendingPoint = () => {
+  const code = normalizeLocationCode(mapLocationCode.value);
+  if (!code || !mapPendingPoint.value) return;
+  setLocationPoint(code, mapPendingPoint.value);
+  mapEditMode.value = false;
+  mapPendingPoint.value = null;
+};
 
 // =====================
 // 데이터 로드
@@ -183,7 +269,7 @@ const addStock = async () => {
   let productCode = code.value.trim();
   const nameValue = nameInput.value.trim();
   const supplierValue = supplierInput.value.trim();
-  const locationValue = locationInput.value.trim();
+  const locationValue = normalizeLocationCode(locationInput.value);
   const minStockValue = Number(minStockInput.value || 0);
   let supplierId = supplierCompanyId.value ? Number(supplierCompanyId.value) : null;
 
@@ -348,7 +434,7 @@ const saveEdit = async () => {
     heat_treatment: editHeatTreatment.value,
     welding: editWelding.value,
     plating: editPlating.value,
-    location: editLocation.value,
+    location: normalizeLocationCode(editLocation.value),
     min_stock: Number(editMinStock.value || 0),
     supplier_company_id: editSupplierCompanyId.value
       ? Number(editSupplierCompanyId.value)
@@ -1274,22 +1360,57 @@ const refreshUpload = async () => {
       <div class="relative bg-white w-[95vw] max-w-6xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b">
           <div class="font-semibold">
-            📍 공장 배치도 ({{ mapLocationCode || "-" }})
+            공장 배치도 ({{ mapLocationCode || "-" }})
           </div>
-          <button class="btn btn-secondary" @click="closeLocationMap">닫기</button>
+          <div class="flex items-center gap-2">
+            <button
+              class="btn btn-secondary h-8 px-2 text-xs"
+              @click="toggleMapEditMode"
+              :class="mapEditMode ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : ''"
+              :title="mapEditMode ? '좌표 편집 모드 종료' : '좌표 편집 모드 (지도 클릭으로 좌표 등록/이동)'"
+            >
+              {{ mapEditMode ? "편집중" : "좌표편집" }}
+            </button>
+            <button
+              v-if="mapEditMode"
+              class="btn btn-primary h-8 px-2 text-xs"
+              @click="savePendingPoint"
+              :disabled="!mapPendingPoint"
+              :class="!mapPendingPoint ? 'opacity-50 cursor-not-allowed' : ''"
+              title="클릭한 좌표를 저장"
+            >
+              좌표저장
+            </button>
+            <button class="btn btn-secondary h-8 px-2 text-xs" @click="zoomOutMap">-</button>
+            <input
+              v-model.number="mapZoom"
+              type="range"
+              min="0.6"
+              max="2.6"
+              step="0.05"
+              class="w-40"
+              aria-label="배치도 확대/축소"
+            />
+            <button class="btn btn-secondary h-8 px-2 text-xs" @click="zoomInMap">+</button>
+            <button class="btn btn-secondary h-8 px-2 text-xs" @click="resetMapZoom">원본</button>
+            <button class="btn btn-secondary" @click="closeLocationMap">닫기</button>
+          </div>
         </div>
         <div class="p-4 overflow-auto max-h-[82vh]">
-          <div class="relative w-full">
+          <div class="relative inline-block origin-top-left" :style="{ transform: `scale(${mapZoom})` }">
             <img
               :src="factoryLayoutUrl"
               alt="공장 배치도"
-              class="w-full h-auto block select-none"
+              class="w-full h-auto block select-none rounded-xl border border-slate-200"
+              :class="mapEditMode ? 'cursor-crosshair ring-2 ring-slate-900/40' : ''"
+              draggable="false"
+              @click.stop="onMapClick"
             />
 
-            <template v-if="activeLocationPoint">
+            <template v-if="displayLocationPoint">
               <div
                 class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                :style="{ left: `${activeLocationPoint.x}%`, top: `${activeLocationPoint.y}%` }"
+                :style="{ left: `${displayLocationPoint.x}%`, top: `${displayLocationPoint.y}%` }"
                 aria-hidden="true"
               >
                 <div class="relative">
@@ -1308,7 +1429,7 @@ const refreshUpload = async () => {
                   <div class="absolute inset-0 rounded-full bg-slate-900/15 animate-ping"></div>
 
                   <!-- Dot -->
-                  <div class="w-6 h-6 rounded-full bg-slate-900 border-2 border-white shadow-lg"></div>
+                  <div class="w-6 h-6 rounded-full bg-black border-2 border-white shadow-lg"></div>
 
                   <!-- Label -->
                   <div class="absolute left-1/2 -translate-x-1/2 top-7 text-xs font-semibold px-2 py-0.5 rounded-full bg-white/95 border border-slate-200 shadow">
@@ -1325,7 +1446,10 @@ const refreshUpload = async () => {
             </div>
           </div>
           <div class="mt-3 text-xs text-slate-500">
-            위치코드는 `A-01` ~ `C-08` 형태로 저장되어 있어야 합니다.
+            위치코드는 `A-01`, `B-03`, `C-11` 같은 형태로 저장되어 있어야 합니다. 좌표가 없으면 `좌표편집`을 눌러 배치도에서 클릭 후 `좌표저장`하면 됩니다.
+          </div>
+          <div v-if="mapEditMode" class="mt-2 text-xs text-slate-600">
+            편집 모드: 배치도에서 위치를 클릭하면 마커가 이동합니다. 저장하려면 `좌표저장`을 누르세요.
           </div>
         </div>
       </div>
