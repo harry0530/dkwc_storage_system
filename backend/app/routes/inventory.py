@@ -236,6 +236,15 @@ def _build_location_map_svg(ws, target_cell, danger=False):
                     f'fill="#{text_color}">{text}</text>'
                 )
 
+    # Draw a final highlight overlay on top so it never gets lost.
+    hx, hy, hw, hh = _cell_rect(target_bounds, col_lefts, row_tops)
+    highlight_fill = "F4CCCC" if danger else "FFF2CC"
+    highlight_stroke = "B91C1C" if danger else "CA8A04"
+    highlight_parts = [
+        f'<rect x="{hx}" y="{hy}" width="{hw}" height="{hh}" fill="#{highlight_fill}" fill-opacity="0.55"/>',
+        f'<rect x="{hx}" y="{hy}" width="{hw}" height="{hh}" fill="none" stroke="#{highlight_stroke}" stroke-width="3"/>',
+    ]
+
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         f'width="{width}" height="{height}">'
@@ -243,6 +252,7 @@ def _build_location_map_svg(ws, target_cell, danger=False):
         + "".join(fill_parts)
         + "".join(border_parts)
         + "".join(text_parts)
+        + "".join(highlight_parts)
         + "</svg>"
     )
 
