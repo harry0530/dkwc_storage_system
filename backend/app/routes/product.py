@@ -268,9 +268,6 @@ def _normalize_product_fields(
         normalized["heat_treatment"] = ""
         normalized["welding"] = ""
         normalized["plating"] = ""
-        normalized["quantity"] = 0
-        normalized["location"] = ""
-        normalized["min_stock"] = 0
         normalized["supplier_company_id"] = None
 
     return normalized
@@ -611,9 +608,6 @@ def import_finished(
             product.type = "FINISHED"
             product.material = ""
             product.spec = parsed["spec"]
-            product.quantity = 0
-            product.min_stock = 0
-            product.location = ""
             product.supplier_company_id = None
             updated += 1
         else:

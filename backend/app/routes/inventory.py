@@ -259,12 +259,15 @@ def _build_location_map_svg(ws, target_cell, danger=False):
 
 # ✅ 재고 조회 (JOIN 버전)
 @router.get("/")
-def get_inventory(db: Session = Depends(get_db)):
+def get_inventory(item_type: str = "PART", db: Session = Depends(get_db)):
     result = []
 
-    inventory_list = db.query(models.Product).filter(
-        models.Product.type == "PART"
-    ).all()
+    normalized_type = (item_type or "PART").strip().upper()
+    query = db.query(models.Product)
+    if normalized_type in {"PART", "FINISHED"}:
+        query = query.filter(models.Product.type == normalized_type)
+
+    inventory_list = query.all()
 
     for inv in inventory_list:
         result.append({

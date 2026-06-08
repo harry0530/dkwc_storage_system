@@ -26,6 +26,11 @@ const mapImageLoading = ref(false);
 const mapImageError = ref("");
 const mapImageObjectUrl = ref("");
 
+const currentInventoryTypeLabel = computed(() =>
+  typeFilter.value === "FINISHED" ? "완제품" : "단품"
+);
+const isFinishedInventoryMode = computed(() => typeFilter.value === "FINISHED");
+
 // 입고
 const stockInCode = ref("");
 const stockInNameInput = ref("");
@@ -321,7 +326,9 @@ const savePendingPoint = () => {
 // 데이터 로드
 // =====================
 const loadInventory = async () => {
-  const res = await api.get("/inventory/");
+  const res = await api.get("/inventory/", {
+    params: { item_type: typeFilter.value }
+  });
   inventory.value = res.data.map((item) => ({
     ...item,
     new_code: item.new_code || item.code || "",
@@ -351,6 +358,7 @@ const loadProducts = async () => {
     code: item.new_code || item.code || "",
     drawing_number: item.drawing_number || "",
     old_code: item.old_code || "",
+    type: (item.type || "PART").toString().toUpperCase(),
     location: normalizeLocationCode(item.location || "")
   }));
 };
@@ -358,8 +366,9 @@ const loadProducts = async () => {
 const findPartByCodeOrName = (codeValue, nameValue) => {
   const codeKeyword = (codeValue || "").trim().toLowerCase();
   const nameKeyword = (nameValue || "").trim().toLowerCase();
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   return inventory.value.find((item) => {
-    if ((item.type || "PART").toString().toUpperCase() !== "PART") return false;
+    if ((item.type || "PART").toString().toUpperCase() !== targetType) return false;
     const newCode = (item.new_code || item.code || "").toLowerCase();
     const oldCode = (item.old_code || "").toLowerCase();
     const name = (item.name || "").toLowerCase();
@@ -684,8 +693,9 @@ const lowStockItems = computed(() =>
 const filteredInventory = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
   const nameKeyword = (searchNameInput.value || "").trim().toLowerCase();
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   const base = inventory.value.filter(
-    (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    (item) => (item.type || "PART").toString().toUpperCase() === targetType
   );
   if (!keyword && !nameKeyword) return [];
   return base.filter((item) => {
@@ -708,9 +718,10 @@ const filteredInventory = computed(() => {
 });
 
 const allPartsSorted = computed(() => {
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   return inventory.value
     .filter(
-      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+      (item) => (item.type || "PART").toString().toUpperCase() === targetType
     )
     .slice()
     .sort((a, b) =>
@@ -824,9 +835,10 @@ const saveInventoryPdf = () => {
 };
 
 const exportInventoryExcel = () => {
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   const rows = inventory.value
     .filter(
-      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+      (item) => (item.type || "PART").toString().toUpperCase() === targetType
     )
     .map((item) => ({
       구품번: item.old_code || "",
@@ -846,9 +858,13 @@ const exportInventoryExcel = () => {
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "단품목록");
+  XLSX.utils.book_append_sheet(
+    wb,
+    ws,
+    targetType === "FINISHED" ? "완제품목록" : "단품목록"
+  );
 
-  const filename = `parts_${buildTimestampTag()}.xlsx`;
+  const filename = `${targetType === "FINISHED" ? "finished_inventory" : "parts"}_${buildTimestampTag()}.xlsx`;
   XLSX.writeFile(wb, filename);
 };
 
@@ -878,11 +894,24 @@ watch(
   }
 );
 
+watch(typeFilter, async () => {
+  searchCode.value = "";
+  searchNameInput.value = "";
+  stockInCode.value = "";
+  stockInNameInput.value = "";
+  selectedProduct.value = "";
+  productLogs.value = [];
+  cancelEdit();
+  closeAllDropdowns();
+  await loadInventory();
+});
+
 const filteredNameSuggestions = computed(() => {
   const keyword = (searchNameInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   const base = inventory.value.filter(
-    (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+    (item) => (item.type || "PART").toString().toUpperCase() === targetType
   );
   return base
     .filter((item) => (item.name || "").toLowerCase().includes(keyword))
@@ -939,9 +968,10 @@ const filteredAddCodeSuggestions = computed(() => {
 const filteredStockInCodeSuggestions = computed(() => {
   const keyword = (stockInCode.value || "").trim().toLowerCase();
   if (!keyword) return [];
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   return inventory.value
     .filter(
-      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+      (item) => (item.type || "PART").toString().toUpperCase() === targetType
     )
     .filter((item) =>
       (item.new_code || item.code || "").toLowerCase().includes(keyword) ||
@@ -958,9 +988,10 @@ const selectStockInCodeSuggestion = (codeValue) => {
 const filteredStockInNameSuggestions = computed(() => {
   const keyword = (stockInNameInput.value || "").trim().toLowerCase();
   if (!keyword) return [];
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   return inventory.value
     .filter(
-      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+      (item) => (item.type || "PART").toString().toUpperCase() === targetType
     )
     .filter((item) => (item.name || "").toLowerCase().includes(keyword))
     .slice(0, 10);
@@ -993,9 +1024,10 @@ const selectAddCodeSuggestion = (codeValue) => {
 const filteredSearchCodeSuggestions = computed(() => {
   const keyword = (searchCode.value || "").trim().toLowerCase();
   if (!keyword) return [];
+  const targetType = (typeFilter.value || "PART").toString().toUpperCase();
   return inventory.value
     .filter(
-      (item) => (item.type || "PART").toString().toUpperCase() === "PART"
+      (item) => (item.type || "PART").toString().toUpperCase() === targetType
     )
     .filter((item) =>
       (item.new_code || item.code || "")
@@ -1089,9 +1121,10 @@ const refreshUpload = async () => {
   <div>
 
     <div class="flex items-center justify-between mb-6">
-      <h2 class="page-title">📦 단품 관리</h2>
+      <h2 class="page-title">📦 재고 관리</h2>
       <div class="flex gap-2 items-center">
         <button
+          v-if="!isFinishedInventoryMode"
           @click="openPartsModal('register')"
           class="btn btn-primary"
         >
@@ -1113,6 +1146,31 @@ const refreshUpload = async () => {
     </div>
 
     <!-- 단품 관리 모달 -->
+    <div class="panel mb-4">
+      <div class="p-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="font-semibold">{{ currentInventoryTypeLabel }} 재고 관리</div>
+          <div class="text-sm text-slate-500">
+            {{ isFinishedInventoryMode ? "완제품 생산/입고 수량과 현재 재고를 관리합니다." : "단품 입고, 보관 위치, 발주 기준 재고를 관리합니다." }}
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="typeFilter = 'PART'"
+            :class="typeFilter === 'PART' ? 'btn btn-primary' : 'btn btn-secondary'"
+          >
+            단품 재고
+          </button>
+          <button
+            @click="typeFilter = 'FINISHED'"
+            :class="typeFilter === 'FINISHED' ? 'btn btn-primary' : 'btn btn-secondary'"
+          >
+            완제품 재고
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showPartsManageModal" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40" @click="showPartsManageModal = false"></div>
       <div class="relative bg-white w-[90vw] max-w-5xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
@@ -1394,7 +1452,7 @@ const refreshUpload = async () => {
       <div class="absolute inset-0 bg-black/40" @click="showAllPartsModal = false"></div>
       <div class="relative bg-white w-[95vw] max-w-7xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b">
-          <div class="font-semibold">전체 단품 정보 ({{ allPartsSorted.length }})</div>
+          <div class="font-semibold">전체 {{ currentInventoryTypeLabel }} 정보 ({{ allPartsSorted.length }})</div>
           <button class="btn btn-secondary" @click="showAllPartsModal = false">닫기</button>
         </div>
         <div class="p-3 overflow-auto max-h-[75vh]">

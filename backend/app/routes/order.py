@@ -225,8 +225,19 @@ def export_sales_summary_xlsx(
 def produce(order_id: int, db: Session = Depends(get_db)):
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
+    if not order:
+        raise Exception("주문 없음")
+
     if order.status == "DONE":
         raise Exception("이미 완료")
+
+    finished = db.query(models.Product).filter(
+        models.Product.new_code == order.product_code,
+        models.Product.type == "FINISHED"
+    ).first()
+
+    if not finished:
+        raise Exception("완제품 없음")
 
     boms = db.query(models.BOM).filter(
         models.BOM.parent_code == order.product_code
@@ -261,6 +272,15 @@ def produce(order_id: int, db: Session = Depends(get_db)):
             reason="PRODUCTION"
         ))
 
+    finished.quantity = (finished.quantity or 0) + (order.quantity or 0)
+
+    db.add(models.Transaction(
+        product_code=finished.new_code,
+        quantity=order.quantity or 0,
+        type="IN",
+        reason="PRODUCTION"
+    ))
+
     order.status = "DONE"
     db.commit()
 
@@ -272,8 +292,22 @@ def produce(order_id: int, db: Session = Depends(get_db)):
 def undo(order_id: int, db: Session = Depends(get_db)):
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
+    if not order:
+        raise Exception("주문 없음")
+
     if order.status != "DONE":
         raise Exception("완료 상태만 취소 가능")
+
+    finished = db.query(models.Product).filter(
+        models.Product.new_code == order.product_code,
+        models.Product.type == "FINISHED"
+    ).first()
+
+    if not finished:
+        raise Exception("완제품 없음")
+
+    if (finished.quantity or 0) < (order.quantity or 0):
+        raise Exception("완제품 재고가 부족해 생산 취소를 할 수 없습니다")
 
     boms = db.query(models.BOM).filter(
         models.BOM.parent_code == order.product_code
@@ -295,6 +329,15 @@ def undo(order_id: int, db: Session = Depends(get_db)):
             type="IN",
             reason="UNDO_PRODUCTION"
         ))
+
+    finished.quantity = (finished.quantity or 0) - (order.quantity or 0)
+
+    db.add(models.Transaction(
+        product_code=finished.new_code,
+        quantity=order.quantity or 0,
+        type="OUT",
+        reason="UNDO_PRODUCTION"
+    ))
 
     order.status = "WAIT"
     db.commit()
