@@ -1,17 +1,21 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import api from "../api";
 import * as XLSX from "xlsx";
 import factoryLayoutUrl from "../assets/factory_layout.png";
 import factoryLocationBoxes from "../assets/factory_location_boxes.json";
 
 const inventory = ref([]);
+const route = useRoute();
 const products = ref([]);
 const companies = ref([]);
 const searchCode = ref("");
 const searchNameInput = ref("");
 const showNameDropdown = ref(false);
-const typeFilter = ref("PART");
+const routeInventoryType = () =>
+  route.meta.inventoryType === "FINISHED" ? "FINISHED" : "PART";
+const typeFilter = ref(routeInventoryType());
 const showAllPartsModal = ref(false);
 const showPartsManageModal = ref(false);
 const partsModalTab = ref("register");
@@ -905,6 +909,16 @@ watch(typeFilter, async () => {
   closeAllDropdowns();
   await loadInventory();
 });
+
+watch(
+  () => route.meta.inventoryType,
+  () => {
+    const nextType = routeInventoryType();
+    if (typeFilter.value !== nextType) {
+      typeFilter.value = nextType;
+    }
+  }
+);
 
 const filteredNameSuggestions = computed(() => {
   const keyword = (searchNameInput.value || "").trim().toLowerCase();

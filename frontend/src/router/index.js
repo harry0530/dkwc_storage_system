@@ -11,6 +11,11 @@ import { getCurrentUser } from "../firebase";
 const routes = [
   { path: "/login", component: LoginView },
   { path: "/", component: InventoryView, meta: { requiresAuth: true } },
+  {
+    path: "/finished-inventory",
+    component: InventoryView,
+    meta: { requiresAuth: true, inventoryType: "FINISHED" }
+  },
   { path: "/products", component: ProductView, meta: { requiresAuth: true } },
   { path: "/orders", component: OrderView, meta: { requiresAuth: true } },
   { path: "/logs", component: LogView, meta: { requiresAuth: true } },
