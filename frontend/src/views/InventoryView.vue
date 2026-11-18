@@ -12,6 +12,8 @@ const products = ref([]);
 const companies = ref([]);
 const searchCode = ref("");
 const searchNameInput = ref("");
+const inventoryPage = ref(1);
+const inventoryPageSize = ref(100);
 const showNameDropdown = ref(false);
 const routeInventoryType = () =>
   route.meta.inventoryType === "FINISHED" ? "FINISHED" : "PART";
@@ -701,8 +703,7 @@ const filteredInventory = computed(() => {
   const base = inventory.value.filter(
     (item) => (item.type || "PART").toString().toUpperCase() === targetType
   );
-  if (!keyword && !nameKeyword) return [];
-  return base.filter((item) => {
+  const matches = !keyword && !nameKeyword ? base : base.filter((item) => {
     const codeValue = (item.new_code || item.code || "")
       .toString()
       .toLowerCase();
@@ -719,7 +720,34 @@ const filteredInventory = computed(() => {
       (nameKeyword && nameValue.includes(nameKeyword))
     );
   });
+  return matches.slice().sort((a, b) =>
+    String(a.new_code || a.code || "").localeCompare(
+      String(b.new_code || b.code || ""),
+      "ko-KR",
+      { numeric: true }
+    )
+  );
 });
+
+const inventoryTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredInventory.value.length / inventoryPageSize.value))
+);
+
+const pagedInventory = computed(() => {
+  const start = (inventoryPage.value - 1) * inventoryPageSize.value;
+  return filteredInventory.value.slice(start, start + inventoryPageSize.value);
+});
+
+const inventoryPageNumbers = computed(() => {
+  const start = Math.max(1, Math.min(inventoryPage.value - 2, inventoryTotalPages.value - 4));
+  const end = Math.min(inventoryTotalPages.value, start + 4);
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+});
+
+const goInventoryPage = (target) => {
+  if (target < 1 || target > inventoryTotalPages.value) return;
+  inventoryPage.value = target;
+};
 
 const allPartsSorted = computed(() => {
   const targetType = (typeFilter.value || "PART").toString().toUpperCase();
@@ -899,6 +927,7 @@ watch(
 );
 
 watch(typeFilter, async () => {
+  inventoryPage.value = 1;
   searchCode.value = "";
   searchNameInput.value = "";
   stockInCode.value = "";
@@ -908,6 +937,10 @@ watch(typeFilter, async () => {
   cancelEdit();
   closeAllDropdowns();
   await loadInventory();
+});
+
+watch([searchCode, searchNameInput, inventoryPageSize], () => {
+  inventoryPage.value = 1;
 });
 
 watch(
@@ -1792,6 +1825,19 @@ const refreshUpload = async () => {
 
     <!-- 재고 테이블 -->
     <div class="panel overflow-x-auto">
+      <div class="sticky left-0 flex min-w-full items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 text-sm text-slate-600">
+        <div>
+          총 <strong class="text-slate-900">{{ filteredInventory.length.toLocaleString() }}</strong>개 품목
+          <span v-if="filteredInventory.length" class="ml-2 text-xs text-slate-400">
+            {{ ((inventoryPage - 1) * inventoryPageSize + 1).toLocaleString() }}–{{ Math.min(inventoryPage * inventoryPageSize, filteredInventory.length).toLocaleString() }} 표시
+          </span>
+        </div>
+        <select v-model.number="inventoryPageSize" class="input h-8 w-auto py-0" aria-label="페이지당 품목 수">
+          <option :value="50">50개씩</option>
+          <option :value="100">100개씩</option>
+          <option :value="200">200개씩</option>
+        </select>
+      </div>
       <table class="w-full text-left table-nowrap">
 
         <thead class="table-head">
@@ -1815,7 +1861,7 @@ const refreshUpload = async () => {
 
         <tbody>
           <tr
-            v-for="item in filteredInventory"
+            v-for="item in pagedInventory"
             :key="item.new_code || item.code"
             class="border-t hover:bg-slate-50"
           >
@@ -1886,6 +1932,25 @@ const refreshUpload = async () => {
         </tbody>
 
       </table>
+
+      <div
+        v-if="filteredInventory.length > 0"
+        class="sticky left-0 flex min-w-full flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500"
+      >
+        <span>{{ inventoryPage.toLocaleString() }} / {{ inventoryTotalPages.toLocaleString() }} 페이지</span>
+        <div class="pagination-buttons">
+          <button :disabled="inventoryPage === 1" @click="goInventoryPage(inventoryPage - 1)">이전</button>
+          <button
+            v-for="pageNumber in inventoryPageNumbers"
+            :key="`inventory-page-${pageNumber}`"
+            :class="{ active: pageNumber === inventoryPage }"
+            @click="goInventoryPage(pageNumber)"
+          >
+            {{ pageNumber }}
+          </button>
+          <button :disabled="inventoryPage === inventoryTotalPages" @click="goInventoryPage(inventoryPage + 1)">다음</button>
+        </div>
+      </div>
 
       <div
         v-if="filteredInventory.length === 0"
