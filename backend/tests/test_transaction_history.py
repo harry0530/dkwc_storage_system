@@ -41,7 +41,7 @@ class TransactionHistoryTests(unittest.TestCase):
     def get_history(self, **overrides):
         params = {
             "page": 1, "page_size": 10, "search": "", "transaction_type": "",
-            "start_date": None, "end_date": None, "reconstructed_only": False,
+            "start_date": None, "end_date": None,
             "db": self.db,
         }
         params.update(overrides)
@@ -52,14 +52,12 @@ class TransactionHistoryTests(unittest.TestCase):
         self.assertEqual(result["total"], 2)
         self.assertEqual(result["summary"]["in_quantity"], 12)
         self.assertEqual(result["summary"]["out_quantity"], 2)
-        self.assertFalse(result["items"][0]["is_reconstructed"])
-        self.assertTrue(result["items"][1]["is_reconstructed"])
         self.assertEqual(result["items"][1]["company"], "금명특장")
 
-    def test_filters_reconstructed_records_by_company(self):
-        result = self.get_history(search="금명", reconstructed_only=True)
+    def test_filters_records_by_company(self):
+        result = self.get_history(search="금명")
         self.assertEqual(result["total"], 1)
-        self.assertEqual(result["items"][0]["source_file"], "금명특장 PROFORMA.xlsx")
+        self.assertEqual(result["items"][0]["company"], "금명특장")
 
 
 if __name__ == "__main__":

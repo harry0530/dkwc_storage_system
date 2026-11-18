@@ -23,7 +23,6 @@ def get_transaction_history(
     transaction_type: str = Query("", alias="type", max_length=3),
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    reconstructed_only: bool = False,
     db: Session = Depends(get_db),
 ):
     """Searchable, paginated inventory history for the operations UI."""
@@ -33,8 +32,6 @@ def get_transaction_history(
             models.Transaction,
             models.Product.name.label("product_name"),
             models.HistoricalImport.company.label("company"),
-            models.HistoricalImport.source_file.label("source_file"),
-            models.HistoricalImport.source_sheet.label("source_sheet"),
         )
         .outerjoin(
             models.Product,
@@ -54,7 +51,6 @@ def get_transaction_history(
                 models.Transaction.product_code.ilike(term),
                 models.Product.name.ilike(term),
                 models.HistoricalImport.company.ilike(term),
-                models.HistoricalImport.source_file.ilike(term),
             )
         )
 
@@ -69,9 +65,6 @@ def get_transaction_history(
         query = query.filter(
             models.Transaction.created_at < datetime.combine(end_date + timedelta(days=1), time.min)
         )
-    if reconstructed_only:
-        query = query.filter(models.HistoricalImport.id.isnot(None))
-
     summary = query.with_entities(
         func.count(models.Transaction.id),
         func.coalesce(
@@ -108,7 +101,7 @@ def get_transaction_history(
     )
 
     items = []
-    for transaction, product_name, company, source_file, source_sheet in rows:
+    for transaction, product_name, company in rows:
         items.append(
             {
                 "id": transaction.id,
@@ -119,9 +112,6 @@ def get_transaction_history(
                 "type": transaction.type,
                 "reason": transaction.reason,
                 "company": company,
-                "source_file": source_file,
-                "source_sheet": source_sheet,
-                "is_reconstructed": source_file is not None,
             }
         )
 
