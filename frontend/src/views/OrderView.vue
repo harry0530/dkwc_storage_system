@@ -1001,7 +1001,10 @@ const deletePurchaseBatch = async (batchId) => {
     <div v-if="activeTab === 'incoming'">
 
       <div class="flex items-center justify-between mb-6">
-        <h2 class="page-title">📋 &#xC218;&#xC8FC; &#xAD00;&#xB9AC;</h2>
+        <div>
+          <p class="eyebrow">Sales Orders</p>
+          <h2 class="page-title">&#xC218;&#xC8FC; &#xAD00;&#xB9AC;</h2>
+        </div>
         <button
           @click="showCompleted = !showCompleted"
           class="btn btn-secondary"
@@ -1217,7 +1220,10 @@ const deletePurchaseBatch = async (batchId) => {
     <div v-else>
 
       <div class="flex items-center justify-between mb-6">
-        <h2 class="page-title">📦 발주 관리</h2>
+        <div>
+          <p class="eyebrow">Purchase Orders</p>
+          <h2 class="page-title">발주 관리</h2>
+        </div>
         <div class="flex items-center gap-2">
           <button
             @click="showPurchaseCompleted = !showPurchaseCompleted"

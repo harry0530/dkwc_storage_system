@@ -1135,7 +1135,10 @@ const refreshUpload = async () => {
   <div>
 
     <div class="flex items-center justify-between mb-6">
-      <h2 class="page-title">📦 재고 관리</h2>
+      <div>
+        <p class="eyebrow">Inventory Control</p>
+        <h2 class="page-title">재고 관리</h2>
+      </div>
       <div class="flex gap-2 items-center">
         <button
           v-if="!isFinishedInventoryMode"

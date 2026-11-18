@@ -275,7 +275,10 @@ onMounted(async () => {
 <template>
   <div>
 
-    <h2 class="page-title mb-6">🏢 거래처 관리</h2>
+    <div class="mb-6">
+      <p class="eyebrow">Business Partners</p>
+      <h2 class="page-title">거래처 관리</h2>
+    </div>
 
     <!-- 직원 추가 모달 -->
     <div v-if="showAddEmployeeModal" class="fixed inset-0 z-50 flex items-center justify-center">

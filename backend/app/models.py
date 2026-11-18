@@ -109,3 +109,23 @@ class Transaction(Base):
     type = Column(String)
     reason = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class HistoricalImport(Base):
+    """Idempotency and provenance ledger for reconstructed historical records."""
+
+    __tablename__ = "historical_imports"
+
+    id = Column(Integer, primary_key=True)
+    fingerprint = Column(String, unique=True, index=True, nullable=False)
+    source_file = Column(String, nullable=False)
+    source_sheet = Column(String, nullable=False)
+    source_row = Column(Integer, nullable=False)
+    event_type = Column(String, nullable=False)
+    event_date = Column(DateTime, nullable=False)
+    product_code = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    company = Column(String)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
+    imported_at = Column(DateTime, default=datetime.utcnow, nullable=False)

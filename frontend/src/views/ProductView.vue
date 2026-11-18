@@ -642,7 +642,10 @@ const deferHide = (fn) => {
   <div>
 
     <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-      <h2 class="page-title">📦 완제품 관리</h2>
+      <div>
+        <p class="eyebrow">Finished Products</p>
+        <h2 class="page-title">완제품 관리</h2>
+      </div>
       <router-link class="btn btn-success" to="/finished-inventory">
         완제품 재고 관리
       </router-link>

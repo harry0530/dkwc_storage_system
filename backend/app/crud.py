@@ -244,4 +244,7 @@ def run_production(db, order_id):
 # 로그
 # =====================
 def get_transactions(db):
-    return db.query(models.Transaction).all()
+    return db.query(models.Transaction).order_by(
+        models.Transaction.created_at.desc(),
+        models.Transaction.id.desc()
+    ).limit(1000).all()
