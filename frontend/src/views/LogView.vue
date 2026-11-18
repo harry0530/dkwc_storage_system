@@ -15,6 +15,7 @@ const pageSize = ref(30);
 const total = ref(0);
 const totalPages = ref(1);
 const summary = ref({ total: 0, in_count: 0, out_count: 0, in_quantity: 0, out_quantity: 0 });
+const legacyLogs = ref(null);
 let searchTimer;
 
 const number = new Intl.NumberFormat("ko-KR");
@@ -23,6 +24,57 @@ const pageNumbers = computed(() => {
   const end = Math.min(totalPages.value, start + 4);
   return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
 });
+
+const applyLegacyFilters = () => {
+  const term = search.value.trim().toLocaleLowerCase("ko-KR");
+  const filtered = (legacyLogs.value || []).filter((log) => {
+    const matchesSearch = !term || [log.product_code, log.product_name, log.source_file]
+      .some((value) => String(value || "").toLocaleLowerCase("ko-KR").includes(term));
+    const matchesType = !typeFilter.value || log.type === typeFilter.value;
+    const date = String(log.created_at || "").slice(0, 10);
+    const matchesStart = !startDate.value || date >= startDate.value;
+    const matchesEnd = !endDate.value || date <= endDate.value;
+    const matchesReconstructed = !reconstructedOnly.value || log.is_reconstructed;
+    return matchesSearch && matchesType && matchesStart && matchesEnd && matchesReconstructed;
+  });
+
+  total.value = filtered.length;
+  totalPages.value = Math.max(1, Math.ceil(filtered.length / pageSize.value));
+  if (page.value > totalPages.value) page.value = totalPages.value;
+  const offset = (page.value - 1) * pageSize.value;
+  logs.value = filtered.slice(offset, offset + pageSize.value);
+  summary.value = filtered.reduce((acc, log) => {
+    acc.total += 1;
+    if (log.type === "IN") {
+      acc.in_count += 1;
+      acc.in_quantity += Number(log.quantity || 0);
+    } else if (log.type === "OUT") {
+      acc.out_count += 1;
+      acc.out_quantity += Number(log.quantity || 0);
+    }
+    return acc;
+  }, { total: 0, in_count: 0, out_count: 0, in_quantity: 0, out_quantity: 0 });
+};
+
+const loadLegacyHistory = async () => {
+  if (!legacyLogs.value) {
+    const { data } = await api.get("/transactions/");
+    legacyLogs.value = data
+      .map((log) => {
+        const reconstructed = String(log.reason || "").startsWith("HISTORICAL_RECONSTRUCTION:");
+        const sourceParts = reconstructed ? log.reason.split(":") : [];
+        return {
+          ...log,
+          is_reconstructed: reconstructed,
+          source_file: sourceParts[1] || null,
+          source_sheet: sourceParts[2] || null,
+          company: null
+        };
+      })
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || b.id - a.id);
+  }
+  applyLegacyFilters();
+};
 
 const loadLogs = async () => {
   loading.value = true;
@@ -44,7 +96,16 @@ const loadLogs = async () => {
     totalPages.value = data.total_pages;
     summary.value = data.summary;
   } catch (requestError) {
-    error.value = requestError?.response?.data?.detail || "입출고 이력을 불러오지 못했습니다.";
+    if (requestError?.response?.status === 404) {
+      try {
+        await loadLegacyHistory();
+        return;
+      } catch (legacyError) {
+        error.value = legacyError?.response?.data?.detail || "입출고 이력을 불러오지 못했습니다.";
+      }
+    } else {
+      error.value = requestError?.response?.data?.detail || "입출고 이력을 불러오지 못했습니다.";
+    }
   } finally {
     loading.value = false;
   }
@@ -77,7 +138,8 @@ const sourceLabel = (log) => log.source_sheet ? `${log.source_file} · ${log.sou
 const goToPage = (target) => {
   if (target < 1 || target > totalPages.value || target === page.value) return;
   page.value = target;
-  loadLogs();
+  if (legacyLogs.value) applyLegacyFilters();
+  else loadLogs();
 };
 const resetFilters = () => {
   search.value = ""; typeFilter.value = ""; startDate.value = ""; endDate.value = "";
